@@ -520,6 +520,10 @@ Event OrgasmSeparate(Form ActorRef, Int Thread)
 			currentPool = Math.LogicalOr(currentPool, ORAL)
 			;Debug.notification("Oral " + currentPool as int)
 		EndIf
+
+		If currentPool == 0
+			return
+		EndIf
 		
 		String callback = ""
 		int i = actors.length
@@ -621,6 +625,10 @@ EndEvent
 
 bool Function UpdateFHUmoan(ObjectReference aksource, int cumType, int spermtype)
 	Actor DeflateActor = aksource as Actor
+	If !DeflateActor
+		return false
+	EndIf
+
 	MfgConsoleFuncExt.ResetMfg(DeflateActor)
 	EmotionWhenLeakage(DeflateActor)
 	bool needUpdate = false
@@ -1120,7 +1128,7 @@ int i
 	while i > 0
 		i -= 1
 		If akactor == player
-			Male = sr_InjectorFormlist.getat(i)
+			Male = sr_InjectorFormlist.getat(i) as Actor
 		Else
 			Male = FormListGet(akactor, stringinjector, i) as Actor
 		EndIf
@@ -1128,7 +1136,6 @@ int i
 		;actori = GetCreatureRaceint(Male as actor)
 		;malerace = (injectorPlayer[i].GetActorBase()).getrace()
 		;Debug.Notification(injectorPlayer[i].GetLeveledActorBase().GetName() + " sperm " + i)
-		
 		if Male
 			actori = GetCreatureRaceint(Male as actor)
             if actori == -1
