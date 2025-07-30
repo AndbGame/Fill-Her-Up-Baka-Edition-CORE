@@ -2308,17 +2308,24 @@ EndFunction
 Function ResetActors()
 	String previousState = GetState()
 	GoToState("maintenance")
-	int n = FormListCount(self, INFLATED_ACTORS) 
+
+	bool resetPlayer = true
+	int n = FormListCount(self, INFLATED_ACTORS)
 	while n > 0
 		n -= 1
 		Form f = FormListGet(self, INFLATED_ACTORS, n)
+		if f == player
+			resetPlayer = false
+		EndIf
 		ResetActor(f)
 	EndWhile
 	FormListClear(self, INFLATED_ACTORS)
 	
 	; Make sure player is always reset
-	log("Resetting " + player.GetLeveledActorBase().GetName() + "...")
-	ResetActor(player)
+	If resetPlayer
+		log("Resetting Player...")
+		ResetActor(player)
+	EndIf
 	
 	notify("$FHU_ACTORS_RESET")
 	
@@ -2332,7 +2339,7 @@ EndFunction
 Function ResetActor(Form f)
 	Actor a = f as Actor
 	If a
-		log("Resetting " + a.GetLeveledActorBase().GetName() + "...")
+		log("Resetting " + a.GetLeveledActorBase().GetName() + ": " + f + "...")
 	else
 		log("Resetting " + f + "...")
 	EndIf
@@ -2364,7 +2371,7 @@ Function ResetActor(Form f)
 		UnencumberActor(a)
 		RemoveFaction(a)
 	EndIf
-	
+
 	FormListRemove(self, INFLATED_ACTORS, f, true)
 	FormListClear(f, "sr.inflater.injector")
 	FormListClear(f, "sr.inflater.analinjector")
