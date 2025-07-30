@@ -270,8 +270,10 @@ bool property addedEvents = true autoreadonly hidden
 int runCount = 0
 Keyword property ActorTypeNPC Auto
 
+Bool IsConfigOpened = false
+
 int Function GetVersion()
-	return (100+96) ;(VersionNumFloatTruncatedToTenth*10)^2+SubversionNum
+	return (200+3) ;(VersionNumFloatTruncatedToTenth*10)^2+SubversionNum
 EndFunction
 
 Function VerifyMods()
@@ -351,6 +353,11 @@ Function SetDefaults()
 	femaleEnabled = true
 	maleEnabled = true
 	statusMsg = statusMsgDefault
+	sr_inflatedCommentChance.SetValueInt(26)
+	dialogue.msgChance = statusMsgChanceDefault
+	If statusMsg
+		dialogue.DoRegister()
+	EndIf
 	npcComments = npcCommentsDefault
 	followerComments = followerCommentsDefault
 	If followerComments
@@ -379,6 +386,13 @@ Function SetDefaults()
 	SpermRemovalAmountVag = SpermRemovalAmountVagDefault
 	SpermRemovalAmountAnal = SpermRemovalAmountAnalDefault
 	SpermRemovalAmountOral = SpermRemovalAmountOralDefault
+	
+	if SLIF_Installed
+		sr_SLIF.setvalue(1)
+		FHUSLIF = true
+	else
+		FHUSLIF = false
+	endif
 EndFunction
 
 Event OnGameReload()
@@ -405,6 +419,12 @@ Function CheckGamePad()
 	bgamepad = Game.UsingGamepad()
 EndFunction
 
+;https://forums.nexusmods.com/index.php?/topic/4795300-starting-quests-from-mcm-quest-script-best-method/
+Function closeMCM()
+    UI.Invoke("Journal Menu", "_root.QuestJournalFader.Menu_mc.ConfigPanelClose")
+    UI.Invoke("Journal Menu", "_root.QuestJournalFader.Menu_mc.CloseMenu")
+EndFunction
+
 Event OnConfigInit()
 	parent.OnConfigInit()
 	PageReset()
@@ -423,53 +443,68 @@ Function PageReset()
 	bToggleSlot = new Bool[32]
 EndFunction
 
-Event OnVersionUpdate(int newVersion)
-	If newVersion != currentVersion
+Function resetConfig(bool isInstall, bool restartQuest = false)
 		VerifyMods()
 		ModName = "Fill her up"
-		bool monitoring = inflater.GetState() == "MonitoringInflation"
-		inflater.stop()
-		eventManager.stop()
-		dialogue.stop()
-		Utility.wait(0.2)
-		dialogue.start()
-		eventManager.start()
-		inflater.start()
+		bool monitoring = false
+		If inflater.IsRunning()
+			monitoring = inflater.GetState() == "MonitoringInflation"
+		EndIf
+
+		If restartQuest
+			inflater.stop()
+			eventManager.stop()
+			dialogue.stop()
+			Utility.wait(0.2)
+
+			dialogue.start()
+			eventManager.start()
+			inflater.start()
+		EndIf
+		
+		int tick = 0
+		while (inflater.IsStarting() || dialogue.IsStarting() || eventManager.IsStarting()) && tick < 20
+			Utility.wait(0.1)
+			tick += 1
+		endwhile
+
 		if monitoring
 			inflater.GoToState("MonitoringInflation")
-			dialogue.doregister()
 		endIf
 		SetDefaults()
 		inflater.versionUpdate()
-		inflater.maintenance()
+		If !restartQuest
+			inflater.maintenance()
+		EndIf
 		raceOID = new int[63] ; 128 items per config page if I'm not mistaken, would leave 64 per side and -1 for header
 		CreatureRaceOID = new int[48]
 		RegisterKeys()
 
-		If currentVersion == 0
+		If isInstall
 			SetDefaultCumAmounts()
-			if SLIF_Installed
-				sr_SLIF.setvalue(1)
-				FHUSLIF = true
-			else
-				FHUSLIF = false
-			endif
 		EndIf
 		InitCumMagicEffects()
-		sr_inflatedCommentChance.SetValueInt(26)
-		dialogue.msgChance = statusMsgChanceDefault
-		dialogue.DoRegister()
-		inflater.log("Updated to " + inflater.GetVersion() + " (" + newVersion +")")
-	;	inflater.ResetActors(true)
 		If addedEvents
 			runCount = 0
 		EndIf
 		Debug.Notification("Fill Her Up " + inflater.GetVersionString() + " initialized.")
+EndFunction
+
+Event OnVersionUpdate(int newVersion)
+	If newVersion != currentVersion
+		resetConfig(currentVersion == 0, currentVersion != 0)
+		inflater.log("Updated to " + inflater.GetVersion() + " (" + newVersion +")")
 	EndIf
 	;debug.Notification("Fill Her Up Update from " + CurrentVersion + " to " + newVersion)
 EndEvent
 
 Event OnPageReset(String page)
+	if(inflater.GetState() == "maintenance")
+        setCursorFillMode(LEFT_TO_RIGHT)
+        AddHeaderOption("FHU in maintenance, please wait...")
+        AddEmptyOption()
+		return
+	EndIf
 	if sr_InfReInit.GetValueInt() > 0
 		SetDefaultCumAmounts()
 		InitCumMagicEffects()
@@ -904,16 +939,18 @@ State settings
 				resetting = true
 				SetTextOptionValue(resetOID, "$FHU_SURE")
 			Else
-				SetTextOptionValue(resetOID, "$FHU_DONE")
+				SetTextOptionValue(resetOID, "...")
 				inflater.ResetActors()
+				SetTextOptionValue(resetOID, "$FHU_DONE")
 			EndIf
 		ElseIf opt == resetquestOID
 			if !resettingquest
 				resettingquest = true
 				SetTextOptionValue(resetquestOID, "$FHU_SURE")
 			Else
+				SetTextOptionValue(resetquestOID, "...")
+				resetConfig(true, true)
 				SetTextOptionValue(resetquestOID, "$FHU_DONE")
-				infplayer.ResetQuests()
 			EndIf
 		ElseIf opt == enabledOID
 			enabled = !enabled
@@ -927,8 +964,6 @@ State settings
 				SetOptionFlags(femaleEnabledOID, OPTION_FLAG_NONE)
 				SetOptionFlags(maleEnabledOID, OPTION_FLAG_NONE)
 			Else
-				inflater.UnregisterForModEvent("SexLabOrgasmSeparate")
-				inflater.UnregisterForModEvent("HookOrgasmStart")
 				inflater.ResetActors() ; Eh, same thing couple of lines lower with a confirmation...
 				StorageUtil.UnsetIntValue(Game.GetPlayer(), "CI_CumInflation_ON")
 				SetOptionFlags(femaleEnabledOID, OPTION_FLAG_DISABLED)
@@ -1762,7 +1797,12 @@ Function SetDefaultCumAmounts()
 	StorageUtil.SetFloatValue(defaultCreatureRaceList[47], inflater.CREATURERACE_CUM_AMOUNT, 0.4)	; Wisp
 EndFunction
 
+Event OnConfigOpen()
+	IsConfigOpened = true
+EndEvent
+
 Event OnConfigClose()
+	IsConfigOpened = false
 	RegisterKeys()
 	inflater.maintenance()
 EndEvent
