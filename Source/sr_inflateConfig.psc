@@ -519,7 +519,6 @@ Event OnPageReset(String page)
 		femaleEnabledOID = AddToggleOption("$FHU_FEMALE_ENABLED", femaleEnabled)
 		maleEnabledOID = AddToggleOption("$FHU_MALE_ENABLED", maleEnabled)
 		bellyScaleOID = AddToggleOption("$FHU_VISUAL_BELLY", bellyScale)
-		BodyMorphOID = AddToggleOption("$FHU_BodyMorph", BodyMorph)
 		minInflationTimeOID = AddSliderOption("$FHU_MIN_TIME", minInflationTime, "$FHU_HOURS")
 		maxInflationOID = AddSliderOption("$FHU_MAX_AMOUNT", maxInflation, "{2}")
 		OralmaxInflationOID = AddSliderOption("$FHU_ORALMAX_AMOUNT", OralmaxInflation, "{2}")
@@ -545,13 +544,14 @@ Event OnPageReset(String page)
 		if i > 0
 			FHUMorphDisabledOID = AddTextOption("$FHU_MORPH_DISABLED", "")
 			FHUMorphStringOID = AddInputOption("$FHU_MORPHSTRING", FHUMorphString, OPTION_FLAG_DISABLED)
-			FHUMorphSLIFOID = AddToggleOption("$FHU_MORPHSLIF", false, OPTION_FLAG_DISABLED)
+			FHUMorphSLIFOID = AddToggleOption("$FHU_MORPHSLIF", FHUMorphString, OPTION_FLAG_DISABLED)
 			FHUMorphString2OID = AddInputOption("$FHU_MORPHSTRING2", FHUMorphString2, OPTION_FLAG_DISABLED)
-			FHUMorphSLIF2OID = AddToggleOption("$FHU_MORPHSLIF2", false, OPTION_FLAG_DISABLED)
+			FHUMorphSLIF2OID = AddToggleOption("$FHU_MORPHSLIF2", FHUMorphSLIF2, OPTION_FLAG_DISABLED)
 			FHUMorphString3OID = AddInputOption("$FHU_MORPHSTRING3", FHUMorphString3, OPTION_FLAG_DISABLED)
-			FHUMorphSLIF3OID = AddToggleOption("$FHU_MORPHSLIF3", false, OPTION_FLAG_DISABLED)
+			FHUMorphSLIF3OID = AddToggleOption("$FHU_MORPHSLIF3", FHUMorphSLIF3, OPTION_FLAG_DISABLED)
 			FHUMorphString4OID = AddInputOption("$FHU_MORPHSTRING4", FHUMorphString4, OPTION_FLAG_DISABLED)
-			FHUMorphSLIF4OID = AddToggleOption("$FHU_MORPHSLIF4", false, OPTION_FLAG_DISABLED)
+			FHUMorphSLIF4OID = AddToggleOption("$FHU_MORPHSLIF4", FHUMorphSLIF4, OPTION_FLAG_DISABLED)
+			BodyMorphOID = AddToggleOption("$FHU_BodyMorph", BodyMorph, OPTION_FLAG_DISABLED)
 		else
 			FHUMorphStringOID = AddInputOption("$FHU_MORPHSTRING", FHUMorphString)
 			if SLIF_Installed
@@ -577,9 +577,14 @@ Event OnPageReset(String page)
 			else
 				FHUMorphSLIF4OID = AddToggleOption("$FHU_MORPHSLIF4", false, OPTION_FLAG_DISABLED)
 			endif
+			BodyMorphOID = AddToggleOption("$FHU_BodyMorph", BodyMorph)
 		endif
 		if SLIF_Installed
-			FHUSLIFOID = AddToggleOption("$FHU_SLIF", FHUSLIF)
+			if i > 0
+				FHUSLIFOID = AddToggleOption("$FHU_SLIF", FHUSLIF, OPTION_FLAG_DISABLED)
+			Else
+				FHUSLIFOID = AddToggleOption("$FHU_SLIF", FHUSLIF)
+			EndIf
 		else
 			FHUSLIFOID = AddToggleOption("$FHU_SLIF", FHUSLIF, OPTION_FLAG_DISABLED)
 		endif
