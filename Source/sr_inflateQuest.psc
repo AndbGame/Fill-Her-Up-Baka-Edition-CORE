@@ -632,7 +632,6 @@ bool Function UpdateFHUmoan(ObjectReference aksource, int cumType, int spermtype
 	If !DeflateActor
 		return false
 	EndIf
-
 	MfgConsoleFuncExt.ResetMfg(DeflateActor)
 	EmotionWhenLeakage(DeflateActor)
 	bool needUpdate = false
@@ -2225,18 +2224,25 @@ int Function GetOralDeflateChance(Actor akActor)
 	return chance
 EndFunction
 
-Function ResetActors(bool force = false)
+Function ResetActors()
         GoToState("")
         int n = FormListCount(self, INFLATED_ACTORS)
+		bool resetPlayerState = true
         while n > 0
-                n -= 1
-                Actor a = FormListGet(self, INFLATED_ACTORS, n) as Actor
-                ResetActorState(a)
+			n -= 1
+			Form f = FormListGet(self, INFLATED_ACTORS, n)
+			ResetActorState(f)
+			if f == player
+				resetPlayerState = false
+			EndIf
         EndWhile
         FormListClear(self, INFLATED_ACTORS)
 
         ; Make sure player is always reset
-        ResetActorState(player)
+		log("Resetting Player...")
+		If resetPlayerState
+			ResetActorState(player)
+		EndIf
         SendPlayerCumUpdate(0.0, true)
         SendPlayerCumUpdate(0.0, false)
         sr_InjectorFormlist.revert()
@@ -2244,49 +2250,55 @@ Function ResetActors(bool force = false)
         notify("$FHU_ACTORS_RESET")
 EndFunction
 
-Function ResetActorState(Actor a)
-        log("Resetting " + a.GetLeveledActorBase().GetName() + "...")
-        if config.bellyScale
-                if config.Bodymorph
-                        ;SetBellyMorphValue(a, 0.0, "PregnancyBelly")
-                        SetBellyMorphValue(a, 0.0, InflateMorph)
-                        if InflateMorph2 != ""
-                                SetBellyMorphValue(a, 0.0, InflateMorph2)
-                        endIf
-                        if InflateMorph3 != ""
-                                SetBellyMorphValue(a, 0.0, InflateMorph3)
-                        endif
-                        if InflateMorph4 != ""
-                                SetBellyMorphValue(a, 0.0, InflateMorph4)
-                        endif
-                        SetFloatValue(a, INFLATION_AMOUNT, 0.0)
-                        SetFloatValue(a, CUM_ORAL, 0.0)
-                Else
-                        RemoveNodeScale(a, BELLY_NODE)
-                Endif
+Function ResetActorState(Form f)
+		Actor a = f as Actor
+		String name = "None"
+		If(a)
+			name = a.GetLeveledActorBase().GetName()
+		EndIf
+        log("Resetting " + name + ": " + f + "...")
+        if a && config.bellyScale
+			if config.Bodymorph
+				;SetBellyMorphValue(a, 0.0, "PregnancyBelly")
+				SetBellyMorphValue(a, 0.0, InflateMorph)
+				if InflateMorph2 != ""
+						SetBellyMorphValue(a, 0.0, InflateMorph2)
+				endIf
+				if InflateMorph3 != ""
+						SetBellyMorphValue(a, 0.0, InflateMorph3)
+				endif
+				if InflateMorph4 != ""
+						SetBellyMorphValue(a, 0.0, InflateMorph4)
+				endif
+			Else
+				RemoveNodeScale(a, BELLY_NODE)
+			Endif
         EndIf
-        FormListClear(a, "sr.inflater.injector")
-        FormListClear(a, "sr.inflater.analinjector")
+        FormListClear(f, "sr.inflater.injector")
+        FormListClear(f, "sr.inflater.analinjector")
 
-        UnsetFloatValue(a, INFLATION_AMOUNT)
-        UnsetFloatValue(a, CUM_ANAL)
-        UnsetFloatValue(a, CUM_VAGINAL)
-        UnsetFloatValue(a, CUM_ORAL)
-        UnsetFloatValue(a, LAST_TIME_ANAL)
-        UnsetFloatValue(a, LAST_TIME_VAG)
-        UnsetFloatValue(a, LAST_TIME_ORAL)
-        UnsetFormValue(a, CHEST_ARMOR)
-        a.RemoveSpell(sr_inflateBurstSpell)
-        UnencumberActor(a)
-        RemoveFaction(a)
+        UnsetFloatValue(f, INFLATION_AMOUNT)
+        UnsetFloatValue(f, CUM_ANAL)
+        UnsetFloatValue(f, CUM_VAGINAL)
+        UnsetFloatValue(f, CUM_ORAL)
+        UnsetFloatValue(f, LAST_TIME_ANAL)
+        UnsetFloatValue(f, LAST_TIME_VAG)
+        UnsetFloatValue(f, LAST_TIME_ORAL)
+;        UnsetFormValue(f, CHEST_ARMOR) ; obsolete
+		If(a)
+			a.RemoveSpell(sr_inflateBurstSpell)
+			UnencumberActor(a)
+			RemoveFaction(a)
+		EndIf
 EndFunction
 
-Function ResetActor(Actor a)
-        ResetActorState(a)
-        FormListRemove(self, INFLATED_ACTORS, a, true)
-        If a == player
-                SendPlayerCumUpdate(0.0, true)
-                SendPlayerCumUpdate(0.0, false)
+Function ResetActor(Form f)
+        ResetActorState(f)
+        FormListRemove(self, INFLATED_ACTORS, f, true)
+        If f == player
+			SendPlayerCumUpdate(0.0, true)
+			SendPlayerCumUpdate(0.0, false)
+			sr_InjectorFormlist.revert()
         EndIf
 EndFunction
 
