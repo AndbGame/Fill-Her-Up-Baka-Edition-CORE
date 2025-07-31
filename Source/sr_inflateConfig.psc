@@ -273,7 +273,7 @@ Keyword property ActorTypeNPC Auto
 Bool IsConfigOpened = false
 
 int Function GetVersion()
-	return (200+3) ;(VersionNumFloatTruncatedToTenth*10)^2+SubversionNum
+	return (200+4) ;(VersionNumFloatTruncatedToTenth*10)^2+SubversionNum
 EndFunction
 
 Function VerifyMods()
@@ -443,7 +443,7 @@ Function PageReset()
 	bToggleSlot = new Bool[32]
 EndFunction
 
-Function resetConfig(bool isInstall, bool restartQuest = false)
+Function resetConfig(bool restartQuest = false, bool resetCumAmounts = false)
 		VerifyMods()
 		ModName = "Fill her up"
 		bool monitoring = false
@@ -472,10 +472,18 @@ Function resetConfig(bool isInstall, bool restartQuest = false)
 			inflater.GoToState("MonitoringInflation")
 		endIf
 		SetDefaults()
+
+		; inflater reset
 		inflater.versionUpdate()
+		inflater.RubAnimation = eventAnimation
+		inflater.InflateMorph = FHUMorphString
+		inflater.InflateMorph2 = FHUMorphString2
+		inflater.InflateMorph3 = FHUMorphString3
+		inflater.InflateMorph4 = FHUMorphString4
 		If !restartQuest
 			inflater.maintenance()
 		EndIf
+
 		raceOID = new int[63] ; 128 items per config page if I'm not mistaken, would leave 64 per side and -1 for header
 		CreatureRaceOID = new int[48]
 		RegisterKeys()
@@ -492,7 +500,12 @@ EndFunction
 
 Event OnVersionUpdate(int newVersion)
 	If newVersion != currentVersion
-		resetConfig(currentVersion == 0, currentVersion != 0)
+		If currentVersion == 0
+			resetConfig(restartQuest = false, resetCumAmounts = true)
+		Else
+			resetConfig(restartQuest = true, resetCumAmounts = false)
+		EndIf
+		
 		inflater.log("Updated to " + inflater.GetVersion() + " (" + newVersion +")")
 	EndIf
 	;debug.Notification("Fill Her Up Update from " + CurrentVersion + " to " + newVersion)
@@ -540,8 +553,8 @@ Event OnPageReset(String page)
 		npcCommentsOID = AddToggleOption("$FHU_NPC_COMMENTS", npcComments)
 		followerCommentsOID = AddToggleOption("$FHU_FOLLOWER_COMMENTS", followerComments)
 		SetCursorPosition(1)
-		int i = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
-		if i > 0
+		int inflatedActors = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
+		if inflatedActors > 0
 			FHUMorphDisabledOID = AddTextOption("$FHU_MORPH_DISABLED", "")
 			FHUMorphStringOID = AddInputOption("$FHU_MORPHSTRING", FHUMorphString, OPTION_FLAG_DISABLED)
 			FHUMorphSLIFOID = AddToggleOption("$FHU_MORPHSLIF", FHUMorphString, OPTION_FLAG_DISABLED)
@@ -580,7 +593,7 @@ Event OnPageReset(String page)
 			BodyMorphOID = AddToggleOption("$FHU_BodyMorph", BodyMorph)
 		endif
 		if SLIF_Installed
-			if i > 0
+			if inflatedActors > 0
 				FHUSLIFOID = AddToggleOption("$FHU_SLIF", FHUSLIF, OPTION_FLAG_DISABLED)
 			Else
 				FHUSLIFOID = AddToggleOption("$FHU_SLIF", FHUSLIF)
@@ -954,7 +967,7 @@ State settings
 				SetTextOptionValue(resetquestOID, "$FHU_SURE")
 			Else
 				SetTextOptionValue(resetquestOID, "...")
-				resetConfig(true, true)
+				resetConfig(restartQuest = true, resetCumAmounts = true)
 				SetTextOptionValue(resetquestOID, "$FHU_DONE")
 			EndIf
 		ElseIf opt == enabledOID
