@@ -488,7 +488,7 @@ Function resetConfig(bool restartQuest = false, bool resetCumAmounts = false)
 		CreatureRaceOID = new int[48]
 		RegisterKeys()
 
-		If isInstall
+		If resetCumAmounts
 			SetDefaultCumAmounts()
 		EndIf
 		InitCumMagicEffects()
