@@ -64,10 +64,10 @@ If keydown && !spermout
 		SendModEvent("dhlp-Suspend") ; do not forgot about `dhlp-Resume` before exit this `If` and function
 		int type = inflater.GetMostRecentInflationType(p);Important
 		int err = 0
-		int plugged = inflater.isPlugged(p)
-		log("Type: " + type)
+		;log("Type: " + type)
 		If type > 0 && type < 3
-			log("Plugged: " + plugged)
+			int plugged = inflater.isPlugged(p)
+			;log("Plugged: " + plugged)
 			If plugged < 3
 				If type == plugged ; one plug and it's blocking
 					If type == 1 ; determine which message to show
@@ -103,6 +103,7 @@ If keydown && !spermout
 				
 				if type > 0
 					err = 0
+					int plugged = inflater.isPlugged(p)
 					If plugged < 3
 						If type == plugged ; one plug and it's blocking
 							If type == 1 ; determine which message to show
@@ -276,7 +277,7 @@ Function RegisterFHUUpdate(int CumType, int SpermType)
 EndFunction
 
 Function doPush(int type, int spermtype)
-	log("doPush")
+	;log("doPush")
 	Actor p = GetActorReference()
 	Game.DisablePlayerControls()
 	Game.ForceThirdPerson()
