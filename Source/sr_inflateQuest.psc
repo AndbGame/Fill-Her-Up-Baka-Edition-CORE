@@ -619,15 +619,6 @@ Event Orgasm(int thread, bool hasPlayer)
 	EndIf
 EndEvent
 
-;/ Event onUpdate() /;
-	;/ MfgConsoleFunc.ResetPhonemeModifier(TempActor) /;
-	;/ if btongueout /;
-		;/ EquiprandomTongue(TempActor, false) /;
-	;/ endif /;
-	;/ EquipArmor(TempActor) /;
-;/ EndEvent /;
-
-
 bool Function UpdateFHUmoan(ObjectReference aksource, int cumType, int spermtype)
 	Actor DeflateActor = aksource as Actor
 	If !DeflateActor
@@ -1238,7 +1229,6 @@ EndFunction
 
 Function StartLeakageEmotionAndTongue(Actor akActor, int CumType)
 	FormListClear(akActor, "sr.inflater.equipped_tongue")
-	FormListClear(akActor, "sr.inflater.equipped_tongue")
 	MfgConsoleFuncExt.ResetMfg(akActor)
 	If Utility.RandomInt(0, 99) < 40 && sr_TongueEffect.getvalue() == 1
 		EquiprandomTongue(akactor, true)
@@ -1553,6 +1543,7 @@ Function StartLeakage(Actor akActor, int CumType, int animate, int spermtype)
 	SetIntValue(akActor, ANIMATE_NUM, animnum)
 	StartLeakageEmotionAndTongue(akActor, CumType)
 
+	FormListClear(akActor, "sr.inflater.unequipped")
 	FormListClear(akActor, "sr.inflater.equipped_leak")
 	If leak1ForEquip
 		EquipLeak(akActor, leak1ForEquip)
@@ -1564,21 +1555,12 @@ Function StartLeakage(Actor akActor, int CumType, int animate, int spermtype)
 	StartLeakageAddCum(akActor, CumType)
 	StartLeakageApplyPuddle(akActor, CumType)
 
-	FormListClear(akActor, "sr.inflater.unequipped")
 	If isStripArmorExpected
 		StripActor(akActor)
 	EndIf
 EndFunction
 
 Function DeflateFailMotion(actor akactor, int CumType, bool btongue = true, int spermtype = 0)
-	bool btongueout = false
-	MfgConsoleFuncExt.ResetMfg(akActor)
-	EmotionWhenLeakage(akactor)
-	if Utility.RandomInt(0, 99) < 40 && sr_TongueEffect.getvalue() == 1 && btongue
-		EquiprandomTongue(akactor, true)
-		btongueout = true
-	endif
-	MouthOpen(akActor, 0);checks tongue
 	
 	if CumType == 1
 		akActor.PlayIdle(BaboSpermExpel)
@@ -1592,9 +1574,17 @@ Function DeflateFailMotion(actor akactor, int CumType, bool btongue = true, int 
 		akActor.PlayIdle(BaboSpermExpelRefuse);I don't want to expel in front of people
 	endif
 
-	if Cumtype < 3 && spermtype > 2;Nostrip when oral
-		StripActor(akActor)
+	bool btongueout = false
+	MfgConsoleFuncExt.ResetMfg(akActor)
+	EmotionWhenLeakage(akactor)
+	if Utility.RandomInt(0, 99) < 40 && sr_TongueEffect.getvalue() == 1 && btongue
+		EquiprandomTongue(akactor, true)
+		btongueout = true
 	endif
+	MouthOpen(akActor, 0);checks tongue
+
+	FormListClear(akActor, "sr.inflater.unequipped")
+	FormListClear(akActor, "sr.inflater.equipped_leak")
 	
 	;if spermtype == 1;BeastCum WIP
 		;if sr_Cumvariation.getvalue() == 1
@@ -1639,7 +1629,10 @@ Function DeflateFailMotion(actor akactor, int CumType, bool btongue = true, int 
 	endif
 	
 	FHUmoanSoundEffect(akactor as objectreference, 3, CumType)
-	TempActor = akActor
+
+	if Cumtype < 3 && spermtype > 2;Nostrip when oral
+		StripActor(akActor)
+	endif
 	;RegisterForSingleUpdate(10.0)
 	Utility.wait(11.0)
 	if btongueout
@@ -2532,7 +2525,7 @@ EndFunction
 ;EndFunction
 
 Function UnstripActor(Actor akActor)
-	log("UnstripActor " + akActor)
+	;log("UnstripActor " + akActor)
 	EquipArmor(akActor)
 EndFunction
 
@@ -2555,7 +2548,7 @@ int thisSlot = 0x01
 			if !SexLabUtil.HasKeywordSub(curr_armor, "NoStrip") && (FormListFind(target, "sr.inflater.equipped_leak", curr_armor) == -1) && (FormListFind(target, "sr.inflater.equipped_tongue", curr_armor) == -1)
 				;wornforms[index] = curr_armor
 				Target.UnequipItem(curr_armor, false, true)
-				log("UnequipArmor from " + target + ": " + curr_armor)
+				;log("UnequipArmor from " + target + ": " + curr_armor)
 				FormListAdd(target, "sr.inflater.unequipped", curr_armor)
 				index += 1
 			EndIf
