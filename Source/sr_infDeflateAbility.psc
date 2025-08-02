@@ -64,10 +64,10 @@ If keydown && !spermout
 		SendModEvent("dhlp-Suspend") ; do not forgot about `dhlp-Resume` before exit this `If` and function
 		int type = inflater.GetMostRecentInflationType(p);Important
 		int err = 0
-		int plugged = inflater.isPlugged(p)
-		log("Type: " + type)
+		;log("Type: " + type)
 		If type > 0 && type < 3
-			log("Plugged: " + plugged)
+			int plugged = inflater.isPlugged(p)
+			;log("Plugged: " + plugged)
 			If plugged < 3
 				If type == plugged ; one plug and it's blocking
 					If type == 1 ; determine which message to show
@@ -103,6 +103,7 @@ If keydown && !spermout
 				
 				if type > 0
 					err = 0
+					int plugged = inflater.isPlugged(p)
 					If plugged < 3
 						If type == plugged ; one plug and it's blocking
 							If type == 1 ; determine which message to show
@@ -128,8 +129,6 @@ If keydown && !spermout
 		else
 			err = 10; no cum
 		EndIf
-
-		int spermtype = 0
 		
 		If err != 10 ; If has cum
 			p.DamageActorValue("Stamina", ((p.GetActorValue("Stamina") / p.GetActorValuePercentage("Stamina")) * 0.4))				
@@ -137,7 +136,6 @@ If keydown && !spermout
 				err = 5
 				log("Bursting, can't deflate")
 			EndIf
-			spermtype = inflater.GetSpermLastActor(p, type)
 		EndIf
 			
 		If err == 0 && (Utility.RandomInt(0, 99) < sr_ExpelFaliure.getvalue() as int)
@@ -151,7 +149,7 @@ If keydown && !spermout
 
 		If err == 0
 		;	log("Pushing: " + type)
-			doPush(type, spermtype)
+			doPush(type)
 		ElseIf err == 1
 			inflater.notify("$FHU_DEF_BLOCK_V"); animation wip
 			inflater.DeflateFailMotion(p, 1, true, 0)
@@ -163,13 +161,13 @@ If keydown && !spermout
 			inflater.DeflateFailMotion(p, 1, true, 0)
 		ElseIf err == 4
 			inflater.notify("$FHU_DEF_FAIL")
-			inflater.DeflateFailMotion(p, type, true, spermtype);Vaginal or Anal
+			inflater.DeflateFailMotion(p, type, true, inflater.GetSpermLastActor(p, type));Vaginal or Anal
 		ElseIf err == 5
 			inflater.notify("$FHU_DEF_BURST_FAIL")
-			inflater.DeflateFailMotion(p, 1, true, spermtype)
+			inflater.DeflateFailMotion(p, 1, true, inflater.GetSpermLastActor(p, type))
 		ElseIf err == 6
 			inflater.notify("$FHU_DEF_ORAL_FAIL");Anal to Oral WIP
-			inflater.DeflateFailMotion(p, 3, true, spermtype)
+			inflater.DeflateFailMotion(p, 3, true, inflater.GetSpermLastActor(p, type))
 		ElseIf err == 7
 			inflater.notify("$FHU_EXPELFAILGAGGED_MESSAGES");Oral Gag WIP
 			inflater.DeflateFailMotion(p, 3, true, 0)
@@ -257,33 +255,29 @@ EndFunction
 
 bool updateFHU = false
 int updateCumType
-int updateSpermType
 Event OnUpdate()
-	if inflater.UpdateFHUmoan(GetReference(), updateCumType, updateSpermType)
+	if inflater.UpdateFHUmoan(GetReference(), updateCumType)
 		RegisterForSingleUpdate(10.0)
 	Else
 		updateCumType = 0
-		updateSpermType = 0
 		updateFHU = false
 	EndIf
 EndEvent
 
-Function RegisterFHUUpdate(int CumType, int SpermType)
+Function RegisterFHUUpdate(int CumType)
 	updateCumType = CumType
 	updateFHU = true
-	updateSpermType = SpermType
 	RegisterForSingleUpdate(10.0)
 EndFunction
 
-Function doPush(int type, int spermtype)
-	log("doPush")
+Function doPush(int type)
+	;log("doPush")
 	Actor p = GetActorReference()
 	Game.DisablePlayerControls()
 	Game.ForceThirdPerson()
 	
 	p.AddToFaction(inflater.inflaterAnimatingFaction)
 	p.SetFactionRank(inflater.inflaterAnimatingFaction, 1)
-	;int spermtype = inflater.GetSpermLastActor(p)
 	String pool = ""
 	If type == 1
 		pool = inflater.CUM_VAGINAL
@@ -292,8 +286,8 @@ Function doPush(int type, int spermtype)
 	else
 		pool = inflater.CUM_ORAL
 	EndIf
-	inflater.StartLeakage(p, type, 1, spermtype)
-	RegisterFHUUpdate(type, spermtype)
+	inflater.StartLeakage(p, type, 1)
+	RegisterFHUUpdate(type)
 	float dps = ((p.GetActorValue("Stamina") / p.GetActorValuePercentage("Stamina")) * 0.01)
 	float currentInf
 	float cum
@@ -395,7 +389,7 @@ Function doPush(int type, int spermtype)
 	doPushDeflate(pool, p, currentInf, startVag, startAn, startOral)
 	
 	Utility.Wait(0.1)
-	inflater.StopLeakage(p, type, spermtype)
+	inflater.StopLeakage(p, type)
 	inflater.UpdateFaction(p)
 	inflater.UpdateOralFaction(p)
 	inflater.SendPlayerCumUpdate(cum, type == 2)
@@ -405,8 +399,11 @@ Function doPush(int type, int spermtype)
 	int cumcompare = Math.Ceiling(diff)
 	
 	if sr_Cumvariationingredients.getvalue() == 1 && cumcompare > 0
+		int spermtype = GetIntValue(p, inflater.ANIMATING_SPERMTYPE, -1)
 		if type < 3
-			if spermtype == 0;human
+			if spermtype < 0;human
+				; skip
+			elseif spermtype == 0;human
 				p.additem(FHUHumanCum, cumcompare)
 			elseif spermtype == 1;beast
 				p.additem(FHUBeastCum, cumcompare)
@@ -448,7 +445,9 @@ Function doPush(int type, int spermtype)
 				p.additem(FHUHumanCum, cumcompare)
 			endif
 		elseif type == 3
-			p.additem(FHUVomitCum, cumcompare)
+			If spermtype >= 0
+				p.additem(FHUVomitCum, cumcompare)
+			EndIf
 		endif
 	endif
 
