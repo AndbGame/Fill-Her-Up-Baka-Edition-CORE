@@ -754,12 +754,18 @@ Event OnPageReset(String page)
 		int iinjector = sr_InjectorFormlist.getsize()
 		while iinjector > 0
 			iinjector -= 1
-			Actor injector = sr_InjectorFormlist.getat(iinjector) as actor
-			If injector
-				AddTextOption(injector.GetLeveledActorBase().GetName(), DefineSex(injector))
-			Else
-				AddTextOption("Unknown", "Unknown")
+			Form injector = sr_InjectorFormlist.getat(iinjector)
+			Actor injectorActor = injector as Actor
+			string iName = "Unknown"
+			string iDescription = "Unknown"
+			If injectorActor
+				iName = injectorActor.GetLeveledActorBase().GetName()
+				iDescription = DefineSex(injectorActor)
+			ElseIf injector
+				iName = "" + injector + ""
+				iDescription = "Unknown"
 			EndIf
+				AddTextOption(iName, iDescription)
 		EndWhile
 	ElseIf page == pages[3] ; Human Cum Amounts
 		int n
