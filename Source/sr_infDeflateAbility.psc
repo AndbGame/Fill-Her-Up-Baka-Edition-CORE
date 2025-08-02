@@ -401,7 +401,7 @@ Function doPush(int type)
 	if sr_Cumvariationingredients.getvalue() == 1 && cumcompare > 0
 		int spermtype = GetIntValue(p, inflater.ANIMATING_SPERMTYPE, -1)
 		if type < 3
-			if spermtype < 0;human
+			if spermtype < 0;none
 				; skip
 			elseif spermtype == 0;human
 				p.additem(FHUHumanCum, cumcompare)
