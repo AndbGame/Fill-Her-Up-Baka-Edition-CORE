@@ -1834,7 +1834,8 @@ Function RestoreActors()
 		Form f = FormListGet(self, INFLATED_ACTORS, n)
 		Actor a = f as Actor
 		If a == None
-			ResetActor(f)
+			ResetActorState(f)
+			FormListRemove(self, INFLATED_ACTORS, f, true)
 		EndIf
 		log("Restoring inflation for " + a.GetLeveledActorBase().GetName() + "...")
 		If config.bellyScale
@@ -2030,7 +2031,20 @@ State maintenance
 	Function ResetActors()
 		;
 	EndFunction
+	
+	Function ResetActor(Form f)
+		;
+	EndFunction
+
 	Function maintenance()
+		;
+	EndFunction
+
+	Event OnUpdateGameTime()
+		;
+	EndEvent
+
+	Function RestoreActors()
 		;
 	EndFunction
 	
@@ -2273,29 +2287,34 @@ int Function GetOralDeflateChance(Actor akActor)
 EndFunction
 
 Function ResetActors()
-        GoToState("")
-        int n = FormListCount(self, INFLATED_ACTORS)
-		bool resetPlayerState = true
-        while n > 0
-			n -= 1
-			Form f = FormListGet(self, INFLATED_ACTORS, n)
-			ResetActorState(f)
-			if f == player
-				resetPlayerState = false
-			EndIf
-        EndWhile
-        FormListClear(self, INFLATED_ACTORS)
+        
+	String previousState = GetState()
+	GoToState("maintenance")
 
-        ; Make sure player is always reset
-		log("Resetting Player...")
-		If resetPlayerState
-			ResetActorState(player)
+	int n = FormListCount(self, INFLATED_ACTORS)
+	bool resetPlayerState = true
+	while n > 0
+		n -= 1
+		Form f = FormListGet(self, INFLATED_ACTORS, n)
+		ResetActorState(f)
+		if f == player
+			resetPlayerState = false
 		EndIf
-        SendPlayerCumUpdate(0.0, true)
-        SendPlayerCumUpdate(0.0, false)
-        sr_InjectorFormlist.revert()
+	EndWhile
+	FormListClear(self, INFLATED_ACTORS)
 
-        notify("$FHU_ACTORS_RESET")
+	; Make sure player is always reset
+	log("Resetting Player...")
+	If resetPlayerState
+		ResetActorState(player)
+	EndIf
+	SendPlayerCumUpdate(0.0, true)
+	SendPlayerCumUpdate(0.0, false)
+	sr_InjectorFormlist.revert()
+
+	notify("$FHU_ACTORS_RESET")
+
+	GoToState("")
 EndFunction
 
 Function ResetActorState(Form f)
