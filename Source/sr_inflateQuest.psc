@@ -319,7 +319,7 @@ EndFunction
 
 Function EggHatchEffect(actor akactor)
 	if !akactor.isinfaction(inflaterAnimatingFaction) && Game.IsMovementControlsEnabled() && RubAnimation 
-		akactor.playidle(BaboStomachRubbing)
+		TryPlayIdle(akactor,BaboStomachRubbing)
 	endif
 	sr_FHUEggCrackingMarker.play(akactor)
 	notify("$FHU_IMPREGNATION_MESSAGES")
@@ -327,7 +327,7 @@ EndFunction
 
 Function RubStomach(actor akactor)
 	if !akactor.isinfaction(inflaterAnimatingFaction) && Game.IsMovementControlsEnabled() && RubAnimation
-		akactor.playidle(BaboStomachRubbing)
+		TryPlayIdle(akactor,BaboStomachRubbing)
 	endif
 	sr_FHUStomachRumblingMarker.play(akactor)
 	notify("$FHU_STOMACHRUMBLE_MESSAGES")
@@ -1036,8 +1036,8 @@ Int Function GetSpermLastActor(actor akactor, int type = 1)
 		Else
 			MaleForm = FormListGet(akactor, stringinjector, i)
 		EndIf
-		Male = MaleForm as Actor
 
+		Male = MaleForm as Actor
 		if Male
 			actori = GetCreatureRaceint(Male as actor)
             if actori == -1
@@ -1196,7 +1196,6 @@ Function EquipLeak(Actor akActor, Armor leak)
 	FormListAdd(akActor, "sr.inflater.equipped_leak", leak)
 EndFunction
 
-
 Function StartLeakageSoundEffect(Actor akActor, int CumType)
 	if CumType < 3
 		if GetInflationPercentage(akactor) < 50
@@ -1315,10 +1314,10 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 			ModEvent.PushString(handle, "$FHU_BURST_WEAPON_DROP")
 			ModEvent.PushString(handle, "$FHU_BURST_SPELL_DROP")
 			If animate >= 10
-				akActor.PlayIdle(BaboAnimsStart[animate - 10])
+				TryPlayIdle(akactor, BaboAnimsStart[animate - 10])
 			Else
 				animnum = Utility.RandomInt(0, BaboAnimsStart.length - 1)
-				akActor.PlayIdle(BaboAnimsStart[animnum])
+				TryPlayIdle(akactor, BaboAnimsStart[animnum])
 			EndIf
 		EndIf 
 		if CumType == 1
@@ -1353,8 +1352,8 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 			akActor.SetRestrained(true)
 			akActor.SetDontMove(true)
 			akActor.StopTranslation()
+			(akActor as ObjectReference).SetAnimationVariableInt("IsNPC", 0)
 		EndIf
-		(akActor as ObjectReference).SetAnimationVariableInt("IsNPC", 0)
 
 		If akActor.IsWeaponDrawn()
 			akActor.SheatheWeapon()
@@ -1366,36 +1365,36 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 		EndIf
 
 		If animate >= 10
-			akActor.PlayIdle(BaboAnimsStart[animate - 10])
+			TryPlayIdle(akactor, BaboAnimsStart[animate - 10])
 		Else
 			if spermtype == 0
 				if CumType == 1
 					animnum = Utility.RandomInt(0, BaboAnimsStart.length - 1)
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_VagLeak
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_AnalLeak
 				elseif CumType == 3
 					;animnum = Utility.RandomInt(0, BaboAnimsOral.length - 1)
-					;akActor.PlayIdle(BaboAnimsOral[animnum])
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					;TryPlayIdle(akactor, BaboAnimsOral[animnum])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeak
 				endif
 			elseif spermtype == 1;BeastCum
 				if CumType == 1
 					animnum = Utility.RandomInt(0, BaboAnimsStart.length - 1)
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_vagLeakBeast
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_analLeakBeast
 				elseif CumType == 3
 					;animnum = Utility.RandomInt(0, BaboAnimsOral.length - 1)
-					;akActor.PlayIdle(BaboAnimsOral[animnum])
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					;TryPlayIdle(akactor, BaboAnimsOral[animnum])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeakBeast
 				endif
 				if sr_Cumvariation.getvalue() == 1
@@ -1408,31 +1407,31 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 			elseif spermtype == 2;dragur
 				if CumType == 1
 					animnum = Utility.RandomInt(0, BaboAnimsStart.length - 1)
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_vagLeakRotten
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_analLeakRotten
 				elseif CumType == 3
 					;animnum = Utility.RandomInt(0, BaboAnimsOral.length - 1)
-					;akActor.PlayIdle(BaboAnimsOral[animnum])
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					;TryPlayIdle(akactor, BaboAnimsOral[animnum])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeakRotten
 				endif
 			elseif spermtype == 3;Spider
 				if CumType == 1
 					animnum = 3
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_VagLeak
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_AnalLeak
 				elseif CumType == 3
 					;animnum = Utility.RandomInt(0, BaboAnimsOral.length - 1)
-					;akActor.PlayIdle(BaboAnimsOral[animnum])
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					;TryPlayIdle(akactor, BaboAnimsOral[animnum])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeak
 				endif
 				if sr_Cumvariation.getvalue() == 1
@@ -1441,14 +1440,14 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 			elseif spermtype == 4;Chaurus
 				if CumType == 1
 					animnum = 3
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_VagLeak
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_AnalLeak
 				elseif CumType == 3
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeak
 				endif
 				if sr_Cumvariation.getvalue() == 1
@@ -1478,16 +1477,16 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 			elseif spermtype == 5;Spriggan
 				if CumType == 1
 					animnum = 3
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_vagLeakGreen
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_analLeakGreen
 				elseif CumType == 3
 					;animnum = Utility.RandomInt(0, BaboAnimsOral.length - 1)
-					;akActor.PlayIdle(BaboAnimsOral[animnum])
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					;TryPlayIdle(akactor, BaboAnimsOral[animnum])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeakGreen
 				endif
 				if sr_Cumvariation.getvalue() == 1
@@ -1502,16 +1501,16 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 			elseif spermtype == 6;StoneAtronach
 				if CumType == 1
 					animnum = 3
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_VagLeak
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_AnalLeak
 				elseif CumType == 3
 					;animnum = Utility.RandomInt(0, BaboAnimsOral.length - 1)
-					;akActor.PlayIdle(BaboAnimsOral[animnum])
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					;TryPlayIdle(akactor, BaboAnimsOral[animnum])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeak
 				endif
 				if sr_Cumvariation.getvalue() == 1
@@ -1520,16 +1519,16 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 			elseif spermtype == 7;AshHopper
 				if CumType == 1
 					animnum = 3
-					akActor.PlayIdle(BaboAnimsStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsStart[animnum])
 					leak1ForEquip = sr_VagLeak
 				elseif CumType == 2
 					animnum = Utility.RandomInt(0, BaboAnimsAnusStart.length - 1)
-					akActor.PlayIdle(BaboAnimsAnusStart[animnum])
+					TryPlayIdle(akactor, BaboAnimsAnusStart[animnum])
 					leak1ForEquip = sr_AnalLeak
 				elseif CumType == 3
 					;animnum = Utility.RandomInt(0, BaboAnimsOral.length - 1)
-					;akActor.PlayIdle(BaboAnimsOral[animnum])
-					akActor.PlayIdle(BaboAnimsOralStart[0])
+					;TryPlayIdle(akactor, BaboAnimsOral[animnum])
+					TryPlayIdle(akactor, BaboAnimsOralStart[0])
 					leak1ForEquip = sr_OralLeak
 				endif
 				if sr_Cumvariation.getvalue() == 1
@@ -1564,17 +1563,27 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 EndFunction
 
 Function DeflateFailMotion(actor akactor, int CumType, bool btongue = true, int spermtype = 0)
-	
+
+	; TODO: Need DisablePlayerControl for player
+	;If akActor.IsWeaponDrawn()
+	;	akActor.SheatheWeapon()
+	;	int attempts = 100
+	;	While attempts > 0 && akActor.IsWeaponDrawn()
+	;		attempts -= 1
+	;		Utility.Wait(0.2)
+	;	EndWhile
+	;EndIf
+
 	if CumType == 1
-		akActor.PlayIdle(BaboSpermExpel)
+		TryPlayIdle(akactor, BaboSpermExpel)
 	elseif CumType == 2
-		akActor.PlayIdle(BaboSpermAnusExpelFail)
+		TryPlayIdle(akactor, BaboSpermAnusExpelFail)
 	elseif CumType == 3
-		akActor.PlayIdle(BaboSpermOralOut)
+		TryPlayIdle(akactor, BaboSpermOralOut)
 	elseif CumType == 4
-		akActor.PlayIdle(BaboSpermExpelPanting);Stamina out
+		TryPlayIdle(akactor, BaboSpermExpelPanting);Stamina out
 	elseif CumType == 5
-		akActor.PlayIdle(BaboSpermExpelRefuse);I don't want to expel in front of people
+		TryPlayIdle(akactor, BaboSpermExpelRefuse);I don't want to expel in front of people
 	endif
 
 	bool btongueout = false
@@ -1597,10 +1606,13 @@ Function DeflateFailMotion(actor akactor, int CumType, bool btongue = true, int 
 		;		EquipLeak(akActor, sr_ThickCum)
 		;	endif
 		;endif
+	FHUmoanSoundEffect(akactor as objectreference, 3, CumType)
 
 	if spermtype == 3;Spider
 		if sr_Cumvariation.getvalue() == 1 && CumType < 3
 			EquipLeak(akActor, sr_SpiderEggs)
+			StripActor(akActor)
+			Utility.wait(10.0)
 		endif
 	elseif spermtype == 4;Chaurus
 		if sr_Cumvariation.getvalue() == 1
@@ -1610,34 +1622,43 @@ Function DeflateFailMotion(actor akactor, int CumType, bool btongue = true, int 
 				else
 					EquipLeak(akActor, sr_ChaurusEggs)
 				endif
+				StripActor(akActor)
+				Utility.wait(10.0)
 			elseif CumType == 2
 				if akActor.getfactionrank(sr_Impregnatedanal) == 1
 					EquipLeak(akActor, sr_ChaurusLarvaeEggs)
 				else
 					EquipLeak(akActor, sr_ChaurusEggs)
 				endif
+				StripActor(akActor)
+				Utility.wait(10.0)
 			elseif CumType == 3
 				EquipLeak(akActor, sr_ChaurusEggs)
+				Utility.wait(10.0)
 			endif
 		endif
 	;elseif spermtype == 5;Spriggan WIP
 	elseif spermtype == 6;StoneAtronach
 		if sr_Cumvariation.getvalue() == 1
 			EquipLeak(akActor, sr_AtronachStones)
+			if Cumtype < 3
+				StripActor(akActor)
+			endif
+			Utility.wait(10.0)
 		endif
 	elseif spermtype == 7;AshHopper
 		if sr_Cumvariation.getvalue() == 1
 			EquipLeak(akActor, sr_AshHopperEggs)
+			if Cumtype < 3
+				StripActor(akActor)
+			endif
+			Utility.wait(10.0)
 		endif
+	Else
+		Utility.wait(5)
 	endif
-	
-	FHUmoanSoundEffect(akactor as objectreference, 3, CumType)
 
-	if Cumtype < 3 && spermtype > 2;Nostrip when oral
-		StripActor(akActor)
-	endif
 	;RegisterForSingleUpdate(10.0)
-	Utility.wait(11.0)
 	if btongueout
 		equiprandomtongue(akactor, false)
 	endif
@@ -1654,6 +1675,34 @@ Function DeflateFailMotion(actor akactor, int CumType, bool btongue = true, int 
 			;/ EquiprandomTongue(akactor, false) /;
 		;/ endif /;
 		;/ EquipArmor(akactor) /;
+EndFunction
+
+Function TryPlayIdle(Actor akActor, Idle akIdle, int retryCount = 3, float delay = 0.5)
+    If akActor == None || akIdle == None
+        log("Invalid actor or idle passed.")
+        return
+    EndIf
+
+    int attempts = 0
+    bool result = false
+
+    while attempts < retryCount
+        if akActor.Is3DLoaded() && !akActor.IsDead() && !akActor.IsInCombat()
+            result = akActor.PlayIdle(akIdle)
+            if result
+                return
+            else
+                log("PlayIdle failed on attempt " + (attempts + 1))
+            endif
+        else
+            log("Actor state not ready on attempt " + (attempts + 1))
+        endif
+
+        Utility.Wait(delay)
+        attempts += 1
+    endwhile
+
+    log("PlayIdle failed after " + retryCount + " attempts.")
 EndFunction
 
 Function MouthOpen(actor akActor, int randomi)
@@ -1736,17 +1785,12 @@ Function StopLeakage(Actor akActor, int cumType)
 	int animnum = GetIntValue(akActor, ANIMATE_NUM, 0)
 	If anim > 0
 		If anim == 1
-			;if AnalDeflation
-			;	akActor.PlayIdle(BaboAnimsAnusEnd[animnum])
-			;else
-			;	akActor.PlayIdle(BaboAnimsEnd[animnum])
-			;endif
 			if cumType == 1
-				akActor.PlayIdle(BaboAnimsEnd[animnum])
+				TryPlayIdle(akactor, BaboAnimsEnd[animnum])
 			elseif cumType == 2
-				akActor.PlayIdle(BaboAnimsAnusEnd[animnum])
+				TryPlayIdle(akactor, BaboAnimsAnusEnd[animnum])
 			elseif cumType == 3
-				akActor.PlayIdle(BaboAnimsOralEnd[0])
+				TryPlayIdle(akactor, BaboAnimsOralEnd[0])
 			endif
 		ElseIf anim == 2
 			Debug.SendAnimationEvent(akActor, "BleedOutStop")
@@ -1760,7 +1804,7 @@ Function StopLeakage(Actor akActor, int cumType)
 	if akActor == player
 		If anim > 0
 			Game.EnablePlayerControls()
-			Debug.SendAnimationEvent(akActor as ObjectReference,"IdleForceDefaultState")
+			;Debug.SendAnimationEvent(akActor as ObjectReference,"IdleForceDefaultState")
 		EndIf
 	Else
 		MfgConsoleFunc.ResetPhonemeModifier(akActor);Player expression is controlled here(OnKeyUp)
@@ -1770,19 +1814,13 @@ Function StopLeakage(Actor akActor, int cumType)
 			akActor.EvaluatePackage()
 			akActor.SetRestrained(False)
 			akActor.SetDontMove(False)
-			Debug.SendAnimationEvent(akActor as ObjectReference,"IdleForceDefaultState")
+			(akActor as ObjectReference).SetAnimationVariableInt("IsNPC", 1)
+			;Debug.SendAnimationEvent(akActor as ObjectReference,"IdleForceDefaultState")
 		EndIf
 	EndIf
-
-	If anim > 0
-		(akActor as ObjectReference).SetAnimationVariableInt("IsNPC", 1)
-	EndIf
 	
-	;akActor.unequipItem(TongueA, abSilent=true)
 	EquiprandomTongue(akactor, false)
-	;akActor.removeItem(TongueA, 99, true)
 	StopExpelSpell(akActor)
-	;MfgConsoleFunc.ResetPhonemeModifier(akActor) ; Remove any previous modifiers and phenomes
 	
 	If anim > 0
 		UnstripActor(akActor)
