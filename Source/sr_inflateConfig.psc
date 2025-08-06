@@ -563,9 +563,9 @@ Event OnPageReset(String page)
 		SaveConfigCONFIRM = false
 		LoadConfigCONFIRM = false
 
-		AddHeaderOption("$BIS_HEADER_SAVELOAD")
-		SaveConfigOID = AddTextOption("$BIS_L_SAVE_SETTINGS", "$BIS_L_SAVE")
-		LoadConfigOID = AddTextOption("$BIS_L_LOAD_SETTINGS", "$BIS_L_LOAD")
+		AddHeaderOption("$FHU_USER_CONFIG_HEADER")
+		SaveConfigOID = AddTextOption("$FHU_USER_CONFIG_SAVE", "$FHU_SAVE")
+		LoadConfigOID = AddTextOption("$FHU_USER_CONFIG_LOAD", "$FHU_LOAD")
 		
 		AddEmptyOption()
 		enabledOID = AddToggleOption("$FHU_ENABLED", enabled)
