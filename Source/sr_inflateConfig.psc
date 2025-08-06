@@ -34,8 +34,8 @@ int property minInflationTime Auto hidden
 int property minInflationTimeDefault = 12 autoreadonly hidden
 int minInflationTimeOID
 
-float Property OralmaxInflation auto hidden;Need MCM
-float Property OralmaxInflationDefault = 2.0 autoreadonly hidden;Need MCM
+float Property OralmaxInflation auto hidden
+float Property OralmaxInflationDefault = 2.0 autoreadonly hidden
 float Property maxInflation auto hidden
 float property maxInflationDefault = 6.0 autoreadonly hidden
 int maxInflationOID
@@ -97,10 +97,16 @@ int bellyScaleOID
 
 int FertilityOID
 
+; Settings Page
+string userSettingsFile = "FillHerUp/UserSettings.json"
+Int SaveConfigOID
+bool SaveConfigCONFIRM = false
+Int LoadConfigOID
+bool LoadConfigCONFIRM = false
 
 bool resetting = false
-bool resettingquest = false
 int resetOID
+bool resettingquest = false
 int resetquestOID
 
 int gamepadOID
@@ -259,7 +265,7 @@ Message Property AddConfirmationMsg Auto
 Message Property AddErrorMsg Auto
 Message Property sr_AddCreatureRaceError Auto
 
-GlobalVariable Property sr_InfReInit auto
+GlobalVariable Property sr_InfReInit auto ; obsolete
 GlobalVariable Property sr_EstrusChaurus auto
 GlobalVariable Property sr_Fertility auto
 GlobalVariable Property sr_BeeingFemale auto
@@ -398,11 +404,29 @@ Function SetDefaults()
 	SpermRemovalAmountOral = SpermRemovalAmountOralDefault
 	
 	if SLIF_Installed
-		sr_SLIF.setvalue(1)
 		FHUSLIF = true
 	else
 		FHUSLIF = false
 	endif
+EndFunction
+
+Function ApplyConfig()
+	sr_SLIF.SetValueInt(FHUSLIF as int)
+
+	inflater.RubAnimation = eventAnimation
+	inflater.InflateMorph = FHUMorphString
+	inflater.InflateMorph2 = FHUMorphString2
+	inflater.InflateMorph3 = FHUMorphString3
+	inflater.InflateMorph4 = FHUMorphString4
+	;inflater.cumMult - directly
+	
+	If bellyScale && enabled
+		StorageUtil.SetIntValue(Game.GetPlayer(), "CI_CumInflation_ON", 1)
+	Else
+		StorageUtil.UnsetIntValue(Game.GetPlayer(), "CI_CumInflation_ON")
+	EndIf
+
+	RegisterKeys()
 EndFunction
 
 Event OnGameReload()
@@ -431,6 +455,7 @@ EndFunction
 
 ;https://forums.nexusmods.com/index.php?/topic/4795300-starting-quests-from-mcm-quest-script-best-method/
 Function closeMCM()
+	ApplyConfig()
     UI.Invoke("Journal Menu", "_root.QuestJournalFader.Menu_mc.ConfigPanelClose")
     UI.Invoke("Journal Menu", "_root.QuestJournalFader.Menu_mc.CloseMenu")
 EndFunction
@@ -485,18 +510,12 @@ Function resetConfig(bool restartQuest = false, bool resetCumAmounts = false)
 
 		; inflater reset
 		inflater.versionUpdate()
-		inflater.RubAnimation = eventAnimation
-		inflater.InflateMorph = FHUMorphString
-		inflater.InflateMorph2 = FHUMorphString2
-		inflater.InflateMorph3 = FHUMorphString3
-		inflater.InflateMorph4 = FHUMorphString4
 		If !restartQuest
 			inflater.maintenance()
 		EndIf
 
 		raceOID = new int[63] ; 128 items per config page if I'm not mistaken, would leave 64 per side and -1 for header
 		CreatureRaceOID = new int[48]
-		RegisterKeys()
 
 		If resetCumAmounts
 			SetDefaultCumAmounts()
@@ -505,6 +524,8 @@ Function resetConfig(bool restartQuest = false, bool resetCumAmounts = false)
 		If addedEvents
 			runCount = 0
 		EndIf
+
+		ApplyConfig()
 		Debug.Notification("Fill Her Up " + inflater.GetVersionString() + " initialized.")
 EndFunction
 
@@ -538,7 +559,18 @@ Event OnPageReset(String page)
 	If page == "" || page == pages[0] ; Settings
 		GoToState("settings")
 		resetting = false
+		resettingquest = false
+		SaveConfigCONFIRM = false
+		LoadConfigCONFIRM = false
+
+		AddHeaderOption("$BIS_HEADER_SAVELOAD")
+		SaveConfigOID = AddTextOption("$BIS_L_SAVE_SETTINGS", "$BIS_L_SAVE")
+		LoadConfigOID = AddTextOption("$BIS_L_LOAD_SETTINGS", "$BIS_L_LOAD")
+		
+		AddEmptyOption()
 		enabledOID = AddToggleOption("$FHU_ENABLED", enabled)
+		
+		AddEmptyOption()
 		femaleEnabledOID = AddToggleOption("$FHU_FEMALE_ENABLED", femaleEnabled)
 		maleEnabledOID = AddToggleOption("$FHU_MALE_ENABLED", maleEnabled)
 		bellyScaleOID = AddToggleOption("$FHU_VISUAL_BELLY", bellyScale)
@@ -616,11 +648,12 @@ Event OnPageReset(String page)
 		consolePrintOID = AddToggleOption("$FHU_CONSOLE_PRINT", consolePrint)
 		loggingOID = AddToggleOption("$FHU_LOGGING", logging)
 		gamepadOID = AddToggleOption("$FHU_GAMEPAD", bgamepad)
+
+		AddEmptyOption()
 		resetOID = AddTextOption("$FHU_RESET_ACTORS", "$FHU_RESET")
 		resetquestOID = AddTextOption("$FHU_RESET_QUEST", "$FHU_RESETQUEST")
-		AddEmptyOption()
 
-		
+		AddEmptyOption()
 		AddTextOption("Debug Actions", "", OPTION_FLAG_DISABLED)
 		debugAmount = 1
 		debugVaginalPool = false
@@ -771,7 +804,8 @@ Event OnPageReset(String page)
 		int n
 		int i
 		Race raze
-		if (inflater.GetOralCum(inflater.player) + inflater.GetAnalCum(inflater.player) + inflater.GetVaginalCum(inflater.player)) > 0
+		int inflatedActors = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
+		if inflatedActors > 0
 			GoToState("Locked_humancumamount")
 			AddHeaderOption("$FHU_RACE_AMOUNTS_LOCKED")
 			n = StorageUtil.FormListCount(self, RACE_LIST)
@@ -796,7 +830,8 @@ Event OnPageReset(String page)
 	int nc = 48
 	int ic = 0
 	Race Creatureraze
-	if (inflater.GetOralCum(inflater.player) + inflater.GetAnalCum(inflater.player) + inflater.GetVaginalCum(inflater.player)) > 0
+	int inflatedActors = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
+	if inflatedActors > 0
 		GoToState("Locked_creaturecumamount")
 		AddHeaderOption("$FHU_CREATURERACE_AMOUNTS_LOCKED")
 		while ic < nc
@@ -935,7 +970,6 @@ State settings
 				FHUMorphString = ""
 				ShowMessage(dupemsg, false)
 			endif
-				inflater.InflateMorph = FHUMorphString
 				SetInputOptionValue(FHUMorphStringOID, FHUMorphString)
 		elseif (option == FHUMorphString2OID)
 			FHUMorphString2 = Stringinput
@@ -943,7 +977,6 @@ State settings
 				FHUMorphString2 = ""
 				ShowMessage(dupemsg, false)
 			endif
-			inflater.InflateMorph2 = FHUMorphString2
 			SetInputOptionValue(FHUMorphString2OID, FHUMorphString2)
 		elseif (option == FHUMorphString3OID)
 			FHUMorphString3 = Stringinput
@@ -951,7 +984,6 @@ State settings
 				FHUMorphString3 = ""
 				ShowMessage(dupemsg, false)
 			endif
-			inflater.InflateMorph3 = FHUMorphString3
 			SetInputOptionValue(FHUMorphString3OID, FHUMorphString3)
 		elseif (option == FHUMorphString4OID)
 			FHUMorphString4 = Stringinput
@@ -959,7 +991,6 @@ State settings
 				FHUMorphString4 = ""
 				ShowMessage(dupemsg, false)
 			endif
-			inflater.InflateMorph4 = FHUMorphString4
 			SetInputOptionValue(FHUMorphString4OID, FHUMorphString4)
 		endIf
 	EndEvent
@@ -980,42 +1011,59 @@ State settings
 			logging = !logging
 			SetToggleOptionValue(loggingOID, logging)
 			inflater.log("Logging set to: " + logging)
+		ElseIf opt == SaveConfigOID
+			if !SaveConfigCONFIRM
+				SetTextOptionValue(SaveConfigOID, "$FHU_SURE")
+			Else
+				SetTextOptionValue(SaveConfigOID, "...")
+				If SaveUserConfig()
+					SetTextOptionValue(SaveConfigOID, "$FHU_DONE")
+				Else
+					SetTextOptionValue(SaveConfigOID, "$FHU_ERR")
+				EndIf
+			EndIf
+			SaveConfigCONFIRM = !SaveConfigCONFIRM
+		ElseIf opt == LoadConfigOID
+			if !LoadConfigCONFIRM
+				SetTextOptionValue(LoadConfigOID, "$FHU_SURE")
+			Else
+				SetTextOptionValue(LoadConfigOID, "...")
+				If LoadUserConfig()
+					SetTextOptionValue(SaveConfigOID, "$FHU_DONE")
+				Else
+					SetTextOptionValue(SaveConfigOID, "$FHU_ERR")
+				EndIf
+			EndIf
+			LoadConfigCONFIRM = !LoadConfigCONFIRM
 		ElseIf opt == FHUSLIFOID
 			FHUSLIF = !FHUSLIF
-			sr_SLIF.SetValueInt(FHUSLIF as int)
 			SetToggleOptionValue(FHUSLIFOID, FHUSLIF)
 		ElseIf opt == resetOID
 			if !resetting
-				resetting = true
 				SetTextOptionValue(resetOID, "$FHU_SURE")
 			Else
 				SetTextOptionValue(resetOID, "...")
 				inflater.ResetActors()
 				SetTextOptionValue(resetOID, "$FHU_DONE")
 			EndIf
+			resetting = !resetting
 		ElseIf opt == resetquestOID
 			if !resettingquest
-				resettingquest = true
 				SetTextOptionValue(resetquestOID, "$FHU_SURE")
 			Else
 				SetTextOptionValue(resetquestOID, "...")
 				resetConfig(restartQuest = true, resetCumAmounts = true)
 				SetTextOptionValue(resetquestOID, "$FHU_DONE")
 			EndIf
+			resettingquest = !resettingquest
 		ElseIf opt == enabledOID
 			enabled = !enabled
 			SetToggleOptionValue(enabledOID, enabled)
 			If enabled
-				If bellyScale
-					StorageUtil.SetIntValue(Game.GetPlayer(), "CI_CumInflation_ON", 1)
-				Else
-					StorageUtil.UnsetIntValue(Game.GetPlayer(), "CI_CumInflation_ON")
-				EndIf
 				SetOptionFlags(femaleEnabledOID, OPTION_FLAG_NONE)
 				SetOptionFlags(maleEnabledOID, OPTION_FLAG_NONE)
 			Else
 				inflater.ResetActors() ; Eh, same thing couple of lines lower with a confirmation...
-				StorageUtil.UnsetIntValue(Game.GetPlayer(), "CI_CumInflation_ON")
 				SetOptionFlags(femaleEnabledOID, OPTION_FLAG_DISABLED)
 				SetOptionFlags(maleEnabledOID, OPTION_FLAG_DISABLED)
 			EndIf
@@ -1029,11 +1077,6 @@ State settings
 		ElseIf opt == bellyScaleOID
 			bellyScale = !bellyScale
 			SetToggleOptionValue(bellyScaleOID, bellyScale)
-			If bellyScale && enabled
-				StorageUtil.SetIntValue(Game.GetPlayer(), "CI_CumInflation_ON", 1)
-			Else
-				StorageUtil.UnsetIntValue(Game.GetPlayer(), "CI_CumInflation_ON")
-			EndIf
 		ElseIf opt == BodyMorphOID
 			BodyMorph = !BodyMorph
 			SetToggleOptionValue(BodyMorphOID, BodyMorph)
@@ -1133,13 +1176,16 @@ State settings
 		ElseIf opt == debugResetOID
 			SetTextOptionValue(debugResetOID, "...")
 			inflater.ResetActor(inflater.player)
-			SetTextOptionValue(debugResetOID, "done")
+			SetTextOptionValue(debugResetOID, "$FHU_DONE")
 		ElseIf opt == debugVaginalPoolOID
 			debugVaginalPool = !debugVaginalPool
 			SetToggleOptionValue(debugVaginalPoolOID, debugVaginalPool)
 		ElseIf opt == debugAnalPoolOID
 			debugAnalPool = !debugAnalPool
 			SetToggleOptionValue(debugAnalPoolOID, debugAnalPool)
+		ElseIf opt == gamepadOID
+			bgamepad = !bgamepad
+			SetToggleOptionValue(gamepadOID, bgamepad)
 		ElseIf opt == debugOralPoolOID
 			debugOralPool = !debugOralPool
 			SetToggleOptionValue(debugOralPoolOID, debugOralPool)
@@ -1235,6 +1281,10 @@ State settings
 			SetInfoText("$FHU_CUM_EFFECTS_HELP")
 		ElseIf opt == FHUSLIFOID
 			SetInfoText("$FHU_SLIF_HELP")
+		ElseIf opt == SaveConfigOID
+			SetInfoText("Save Config to file")
+		ElseIf opt == LoadConfigOID
+			SetInfoText("Load Config from file")
 		Else
 			SetInfoText("")
 		endif
@@ -1406,7 +1456,6 @@ State events
 			SetToggleOptionValue(eventsImpregnationOID, eventsImpregnation)
 		elseIf opt == eventAnimationOID
 			eventAnimation = !eventAnimation
-			inflater.RubAnimation = eventAnimation
 			SetToggleOptionValue(eventAnimationOID, eventAnimation)
 		Else
 			int idx = ToggleSlotID.Find(opt)
@@ -1580,10 +1629,8 @@ Event OnOptionDefault(int opt)
 		SetToggleOptionValue(TongueOID,sr_TongueEffect.getvalue())
 	ElseIf opt == FHUSLIFOID
 		if SLIF_Installed
-			sr_SLIF.setvalue(1)
 			FHUSLIF = true
 		else
-			sr_SLIF.setvalue(0)
 			FHUSLIF = false
 		endif
 		SetToggleOptionValue(FHUSLIFOID, FHUSLIF)
@@ -1607,11 +1654,6 @@ Event OnOptionDefault(int opt)
 		SetToggleOptionValue(consolePrintOID, consolePrint)
 	ElseIf opt == bellyScaleOID
 		bellyScale = bellyScaleDefault
-		If bellyScale
-			StorageUtil.SetIntValue(Game.GetPlayer(), "CI_CumInflation_ON", 1)
-		Else
-			StorageUtil.UnsetIntValue(Game.GetPlayer(), "CI_CumInflation_ON")
-		EndIf
 		SetToggleOptionValue(bellyScaleOID, bellyScale)
 	ElseIf opt == BodyMorphOID
 		BodyMorph = true
@@ -1878,9 +1920,9 @@ Event OnConfigOpen()
 EndEvent
 
 Event OnConfigClose()
-	IsConfigOpened = false
-	RegisterKeys()
+	ApplyConfig()
 	inflater.maintenance()
+	IsConfigOpened = false
 EndEvent
 
 
@@ -1974,4 +2016,242 @@ Function IgnoreArmorSlot(GlobalVariable IgnoredArmorSlotsMask, GlobalVariable Ig
 	
 	IgnoredArmorSlotsMask.SetValue(Math.LogicalAnd(NewIgnoredArmorSlotsMask, 0x00ffffff))
 	IgnoredArmorSlotsMaskB.SetValue(Math.RightShift(NewIgnoredArmorSlotsMask, 24))
+EndFunction
+
+bool Function SaveUserConfig()
+	if JsonUtil.JsonExists(userSettingsFile)
+		if JsonUtil.IsPendingSave(userSettingsFile)
+			ShowMessage("$FHU_USER_CONFIG_FILE_STILL_SAVING")
+			return false
+		endIf
+	endIf
+
+	int i = 0
+	int n = 0
+	Race raze
+	
+	JsonUtil.ClearAll(userSettingsFile)
+
+	; Settings
+	JsonUtil.SetIntValue(userSettingsFile, "enabled", enabled as int)
+	JsonUtil.SetIntValue(userSettingsFile, "femaleEnabled", femaleEnabled as int)
+	JsonUtil.SetIntValue(userSettingsFile, "maleEnabled", maleEnabled as int)
+	JsonUtil.SetIntValue(userSettingsFile, "bellyScale", bellyScale as int)
+	JsonUtil.SetIntValue(userSettingsFile, "minInflationTime", minInflationTime)
+	JsonUtil.SetFloatValue(userSettingsFile, "maxInflation", maxInflation)
+	JsonUtil.SetFloatValue(userSettingsFile, "OralmaxInflation", OralmaxInflation)
+	JsonUtil.SetIntValue(userSettingsFile, "strip", strip as int)
+	JsonUtil.SetIntValue(userSettingsFile, "sr_Cumvariation", sr_Cumvariation.getvalue() as int)
+	JsonUtil.SetIntValue(userSettingsFile, "sr_Cumvariationingredients", sr_Cumvariationingredients.getvalue() as int)
+	JsonUtil.SetFloatValue(userSettingsFile, "Deflatechance", Deflatechance)
+	JsonUtil.SetIntValue(userSettingsFile, "animDeflate", animDeflate as int)
+	JsonUtil.SetFloatValue(userSettingsFile, "animMult", animMult)
+	JsonUtil.SetFloatValue(userSettingsFile, "inflater_cumMult", inflater.cumMult)
+	JsonUtil.SetIntValue(userSettingsFile, "encumber", encumber as int)
+	JsonUtil.SetIntValue(userSettingsFile, "SFU_PlacePuddles", SFU_PlacePuddles as int)
+	JsonUtil.SetIntValue(userSettingsFile, "cumEffects", cumEffects as int)
+	JsonUtil.SetIntValue(userSettingsFile, "defKey", defKey)
+	JsonUtil.SetIntValue(userSettingsFile, "MoanSound", MoanSound as int)
+	JsonUtil.SetIntValue(userSettingsFile, "statusMsg", statusMsg as int)
+	JsonUtil.SetIntValue(userSettingsFile, "SexlabMoanSound", SexlabMoanSound as int)
+	JsonUtil.SetFloatValue(userSettingsFile, "dialogue_msgChance", dialogue.msgChance)
+	JsonUtil.SetIntValue(userSettingsFile, "npcComments", npcComments as int)
+	JsonUtil.SetIntValue(userSettingsFile, "followerComments", followerComments as int)
+
+	JsonUtil.SetStringValue(userSettingsFile, "FHUMorphString", FHUMorphString)
+	JsonUtil.SetIntValue(userSettingsFile, "FHUMorphSLIF", FHUMorphSLIF as int)
+	JsonUtil.SetStringValue(userSettingsFile, "FHUMorphString2", FHUMorphString2)
+	JsonUtil.SetIntValue(userSettingsFile, "FHUMorphSLIF2", FHUMorphSLIF2 as int)
+	JsonUtil.SetStringValue(userSettingsFile, "FHUMorphString3", FHUMorphString3)
+	JsonUtil.SetIntValue(userSettingsFile, "FHUMorphSLIF3", FHUMorphSLIF3 as int)
+	JsonUtil.SetStringValue(userSettingsFile, "FHUMorphString4", FHUMorphString4)
+	JsonUtil.SetIntValue(userSettingsFile, "FHUMorphSLIF4", FHUMorphSLIF4 as int)
+	JsonUtil.SetIntValue(userSettingsFile, "BodyMorph", BodyMorph as int)
+	JsonUtil.SetIntValue(userSettingsFile, "FHUSLIF", FHUSLIF as int)
+	JsonUtil.SetFloatValue(userSettingsFile, "BodyMorphApplyPeriod", BodyMorphApplyPeriod)
+	JsonUtil.SetIntValue(userSettingsFile, "addRaceKey", addRaceKey)
+	JsonUtil.SetIntValue(userSettingsFile, "consolePrint", consolePrint as int)
+	JsonUtil.SetIntValue(userSettingsFile, "logging", logging as int)
+	JsonUtil.SetIntValue(userSettingsFile, "bgamepad", bgamepad as int)
+
+	;Events
+	JsonUtil.SetIntValue(userSettingsFile, "events", events as int)
+	JsonUtil.SetFloatValue(userSettingsFile, "eventManager_interval", eventManager.interval)
+	JsonUtil.SetIntValue(userSettingsFile, "eventsImpregnation", eventsImpregnation as int)
+	JsonUtil.SetIntValue(userSettingsFile, "eventAnimation", eventAnimation as int)
+	JsonUtil.SetIntValue(userSettingsFile, "SendeventChance", SendeventChance)
+	JsonUtil.SetIntValue(userSettingsFile, "sr_OnEventNoDeflation", sr_OnEventNoDeflation.getvalue() as int)
+	JsonUtil.SetIntValue(userSettingsFile, "sr_OnEventAbsorbSperm", sr_OnEventAbsorbSperm.getvalue() as int)
+	JsonUtil.SetFloatValue(userSettingsFile, "SpermRemovalAmountVag", SpermRemovalAmountVag)
+	JsonUtil.SetFloatValue(userSettingsFile, "SpermRemovalAmountAnal", SpermRemovalAmountAnal)
+	JsonUtil.SetIntValue(userSettingsFile, "sr_OnEventAbsorbSpermOral", sr_OnEventAbsorbSpermOral.getvalue() as int)
+	JsonUtil.SetFloatValue(userSettingsFile, "SpermRemovalAmountOral", SpermRemovalAmountOral)
+	JsonUtil.SetIntValue(userSettingsFile, "sr_TongueEffect", sr_TongueEffect.getvalue() as int)
+
+	JsonUtil.SetIntValue(userSettingsFile, "sr_OnEventSpermPlayer", sr_OnEventSpermPlayer.getvalue() as int)
+	JsonUtil.SetIntValue(userSettingsFile, "sr_OnEventSpermNPC", sr_OnEventSpermNPC.getvalue() as int)
+
+	i = 0
+	while i < 128 && eventManager.events[i] != none
+		JsonUtil.SetIntValue(userSettingsFile, "eventManager_event_" + eventManager.events[i].eventName, eventManager.events[i].chance)
+		i += 1
+	endWhile
+
+	JsonUtil.SetIntValue(userSettingsFile, "SRSlotMaskA", SRSlotMask.GetValue() As Int)
+	JsonUtil.SetIntValue(userSettingsFile, "SRSlotMaskB", SRSlotMaskB.GetValue() As Int)
+
+	; actors
+
+	; Human Cum Amounts
+	n = StorageUtil.FormListCount(self, RACE_LIST)
+	JsonUtil.FormListClear(userSettingsFile, "RACE_LIST")
+	i = 0
+	while i < n
+		raze = StorageUtil.FormListGet(self, RACE_LIST, i) as Race
+		If raze
+			JsonUtil.FormListAdd(userSettingsFile, "RACE_LIST", raze, false)
+			JsonUtil.SetFloatValue(userSettingsFile, "RACE_CUM_AMOUNT_" + raze.GetFormID(), StorageUtil.GetFloatValue(raze, inflater.RACE_CUM_AMOUNT, 0.75))
+		EndIf
+		i += 1
+	endWhile
+
+	; Creature Cum Amounts
+	n = 48
+	i = 0
+	while i < n
+		raze = StorageUtil.FormListGet(self, CREATURERACE_LIST, i) as Race
+		If raze
+			JsonUtil.SetFloatValue(userSettingsFile, "CREATURE_RACE_CUM_AMOUNT_" + raze.GetFormID(), StorageUtil.GetFloatValue(raze, inflater.CREATURERACE_CUM_AMOUNT, 0.75))
+		EndIf
+		i += 1
+	endWhile
+	If JsonUtil.Save(userSettingsFile)
+		return true
+	Else
+		ShowMessage("$FHU_USER_CONFIG_FILE_SAVE_ERROR", false)
+		return false
+	Endif
+EndFunction
+
+bool Function LoadUserConfig()
+	if !JsonUtil.JsonExists(userSettingsFile)
+		ShowMessage("$FHU_USER_CONFIG_FILE_NOT_EXIST", false)
+		return false
+	ElseIf !(JsonUtil.Load(userSettingsFile) && JsonUtil.IsGood(userSettingsFile))
+		ShowMessage("$FHU_USER_CONFIG_FILE_WRONG", false)
+		return false
+	endIf
+
+	int i = 0
+	int n = 0
+	Race raze
+
+	; pre
+	inflater.UnencumberAllActors()
+	inflater.ResetActors()
+	
+	; Settings
+	enabled = JsonUtil.GetIntValue(userSettingsFile, "enabled", enabled as int) as bool
+	femaleEnabled = JsonUtil.GetIntValue(userSettingsFile, "femaleEnabled", femaleEnabled as int) as bool
+	maleEnabled = JsonUtil.GetIntValue(userSettingsFile, "maleEnabled", maleEnabled as int) as bool
+	bellyScale = JsonUtil.GetIntValue(userSettingsFile, "bellyScale", bellyScale as int) as bool
+	minInflationTime = JsonUtil.GetIntValue(userSettingsFile, "minInflationTime", minInflationTime)
+	maxInflation = JsonUtil.GetFloatValue(userSettingsFile, "maxInflation", maxInflation)
+	OralmaxInflation = JsonUtil.GetFloatValue(userSettingsFile, "OralmaxInflation", OralmaxInflation)
+	strip = JsonUtil.GetIntValue(userSettingsFile, "strip", strip as int) as bool
+	sr_Cumvariation.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_Cumvariation", sr_Cumvariation.getvalue() as int) as bool) as int)
+	sr_Cumvariationingredients.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_Cumvariationingredients", sr_Cumvariationingredients.getvalue() as int) as bool) as int)
+	Deflatechance = JsonUtil.GetFloatValue(userSettingsFile, "Deflatechance", Deflatechance)
+	animDeflate = JsonUtil.GetIntValue(userSettingsFile, "animDeflate", animDeflate as int) as bool
+	animMult = JsonUtil.GetFloatValue(userSettingsFile, "animMult", animMult)
+	inflater.cumMult = JsonUtil.GetFloatValue(userSettingsFile, "inflater_cumMult", inflater.cumMult)
+	encumber = JsonUtil.GetIntValue(userSettingsFile, "encumber", encumber as int) as bool
+	SFU_PlacePuddles = JsonUtil.GetIntValue(userSettingsFile, "SFU_PlacePuddles", SFU_PlacePuddles as int) as bool
+	cumEffects = JsonUtil.GetIntValue(userSettingsFile, "cumEffects", cumEffects as int) as bool
+	defKey = JsonUtil.GetIntValue(userSettingsFile, "defKey", defKey)
+	MoanSound = JsonUtil.GetIntValue(userSettingsFile, "MoanSound", MoanSound as int) as bool
+	statusMsg = JsonUtil.GetIntValue(userSettingsFile, "statusMsg", statusMsg as int) as bool
+	SexlabMoanSound = JsonUtil.GetIntValue(userSettingsFile, "SexlabMoanSound", SexlabMoanSound as int) as bool
+	dialogue.msgChance = JsonUtil.GetFloatValue(userSettingsFile, "dialogue_msgChance", dialogue.msgChance)
+	npcComments = JsonUtil.GetIntValue(userSettingsFile, "npcComments", npcComments as int) as bool
+	followerComments = JsonUtil.GetIntValue(userSettingsFile, "followerComments", followerComments as int) as bool
+
+	FHUMorphString = JsonUtil.GetStringValue(userSettingsFile, "FHUMorphString", FHUMorphString)
+	FHUMorphSLIF = JsonUtil.GetIntValue(userSettingsFile, "FHUMorphSLIF", FHUMorphSLIF as int) as bool
+	FHUMorphString2 = JsonUtil.GetStringValue(userSettingsFile, "FHUMorphString2", FHUMorphString2)
+	FHUMorphSLIF2 = JsonUtil.GetIntValue(userSettingsFile, "FHUMorphSLIF2", FHUMorphSLIF2 as int) as bool
+	FHUMorphString3 = JsonUtil.GetStringValue(userSettingsFile, "FHUMorphString3", FHUMorphString3)
+	FHUMorphSLIF3 = JsonUtil.GetIntValue(userSettingsFile, "FHUMorphSLIF3", FHUMorphSLIF3 as int) as bool
+	FHUMorphString4 = JsonUtil.GetStringValue(userSettingsFile, "FHUMorphString4", FHUMorphString4)
+	FHUMorphSLIF4 = JsonUtil.GetIntValue(userSettingsFile, "FHUMorphSLIF4", FHUMorphSLIF4 as int) as bool
+	BodyMorph = JsonUtil.GetIntValue(userSettingsFile, "BodyMorph", BodyMorph as int) as bool
+	FHUSLIF = JsonUtil.GetIntValue(userSettingsFile, "FHUSLIF", FHUSLIF as int) as bool
+	BodyMorphApplyPeriod = JsonUtil.GetFloatValue(userSettingsFile, "BodyMorphApplyPeriod", BodyMorphApplyPeriod)
+	addRaceKey = JsonUtil.GetIntValue(userSettingsFile, "addRaceKey", addRaceKey)
+	consolePrint = JsonUtil.GetIntValue(userSettingsFile, "consolePrint", consolePrint as int) as bool
+	logging = JsonUtil.GetIntValue(userSettingsFile, "logging", logging as int) as bool
+	bgamepad = JsonUtil.GetIntValue(userSettingsFile, "bgamepad", bgamepad as int) as bool
+
+	;Events
+	events = JsonUtil.GetIntValue(userSettingsFile, "events", events as int) as bool
+	eventManager.interval = JsonUtil.GetFloatValue(userSettingsFile, "eventManager_interval", eventManager.interval)
+	eventsImpregnation = JsonUtil.GetIntValue(userSettingsFile, "eventsImpregnation", eventsImpregnation as int) as bool
+	eventAnimation = JsonUtil.GetIntValue(userSettingsFile, "eventAnimation", eventAnimation as int) as bool
+	SendeventChance = JsonUtil.GetIntValue(userSettingsFile, "SendeventChance", SendeventChance)
+	sr_OnEventNoDeflation.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_OnEventNoDeflation", sr_OnEventNoDeflation.getvalue() as int) as bool) as int)
+	sr_OnEventAbsorbSperm.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_OnEventAbsorbSperm", sr_OnEventAbsorbSperm.getvalue() as int) as bool) as int)
+	SpermRemovalAmountVag = JsonUtil.GetFloatValue(userSettingsFile, "SpermRemovalAmountVag", SpermRemovalAmountVag)
+	SpermRemovalAmountAnal = JsonUtil.GetFloatValue(userSettingsFile, "SpermRemovalAmountAnal", SpermRemovalAmountAnal)
+	sr_OnEventAbsorbSpermOral.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_OnEventAbsorbSpermOral", sr_OnEventAbsorbSpermOral.getvalue() as int) as bool) as int)
+	SpermRemovalAmountOral = JsonUtil.GetFloatValue(userSettingsFile, "SpermRemovalAmountOral", SpermRemovalAmountOral)
+	sr_TongueEffect.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_TongueEffect", sr_TongueEffect.getvalue() as int) as bool) as int)
+
+	sr_OnEventSpermPlayer.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_OnEventSpermPlayer", sr_OnEventSpermPlayer.getvalue() as int) as bool) as int)
+	sr_OnEventSpermNPC.SetValue((JsonUtil.GetIntValue(userSettingsFile, "sr_OnEventSpermNPC", sr_OnEventSpermNPC.getvalue() as int) as bool) as int)
+
+	i = 0
+	while i < 128 && eventManager.events[i] != none
+		eventManager.events[i].chance = JsonUtil.GetIntValue(userSettingsFile, "eventManager_event_" + eventManager.events[i].eventName, eventManager.events[i].chance)
+		i += 1
+	endWhile
+
+	SRSlotMask.SetValue(JsonUtil.GetIntValue(userSettingsFile, "SRSlotMaskA", SRSlotMask.GetValue() As Int))
+	SRSlotMaskB.SetValue(JsonUtil.GetIntValue(userSettingsFile, "SRSlotMaskB", SRSlotMaskB.GetValue() As Int))
+
+	; actors
+
+	; Human Cum Amounts
+	n = JsonUtil.FormListCount(userSettingsFile, "RACE_LIST")
+	i = 0
+	float amount
+	while i < n
+		raze = JsonUtil.FormListGet(userSettingsFile, "RACE_LIST", i) as Race
+		If raze
+			StorageUtil.FormListAdd(self, RACE_LIST, raze, false)
+			amount = JsonUtil.GetFloatValue(userSettingsFile, "RACE_CUM_AMOUNT_" + raze.GetFormID(), -1)
+			if amount >= 0
+				StorageUtil.SetFloatValue(raze, inflater.RACE_CUM_AMOUNT, amount)
+			EndIf
+		EndIf
+		i += 1
+	endWhile
+
+	; Creature Cum Amounts
+	n = 48
+	i = 0
+	while i < n
+		raze = StorageUtil.FormListGet(self, CREATURERACE_LIST, i) as Race
+		If raze
+			amount = JsonUtil.GetFloatValue(userSettingsFile, "CREATURE_RACE_CUM_AMOUNT_" + raze.GetFormID(), -1)
+			if amount >= 0
+				StorageUtil.SetFloatValue(raze, inflater.CREATURERACE_CUM_AMOUNT, amount)
+			EndIf
+		EndIf
+		i += 1
+	endWhile
+
+	JsonUtil.Unload(userSettingsFile, false)
+	ApplyConfig()
+	ForcePageReset()
+	return true
 EndFunction

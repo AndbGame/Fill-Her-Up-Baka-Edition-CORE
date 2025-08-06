@@ -122,7 +122,7 @@ sr_inflateThread[] Property threads auto
 ;Bool TongueOut
 
 GlobalVariable Property sr_CumMultiplier Auto
-GlobalVariable Property sr_SLIF Auto
+GlobalVariable Property sr_SLIF Auto ;deprecated
 float Property cumMult hidden
 	float Function Get()
 		return sr_CumMultiplier.GetValue()
@@ -1292,14 +1292,14 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 		return
 	EndIf
 
-	log("StartLeakage for " + akActor.GetLeveledActorBase().GetName() + "; animate:" + animate + "; CumType: " + CumType + "; spermtype: " + spermtype)
-
 	bool isStripArmorExpected = false
 	Armor leak1ForEquip = None
 	Armor leak2ForEquip = None
 	int animnum = 0
 	int spermtype = GetSpermLastActor(akActor, CumType)
 	SetIntValue(akActor, ANIMATING_SPERMTYPE, spermtype)
+
+	log("StartLeakage for " + akActor.GetLeveledActorBase().GetName() + "; animate:" + animate + "; CumType: " + CumType + "; spermtype: " + spermtype)
 
 	If animate == 2
 		; Burst deflate 
@@ -3100,7 +3100,7 @@ Function SetBellyMorphValue(Actor akActor, float value, string MorphName)
 	endif
 	
 	If value != 0.0
-		if sr_SLIF.getvalue() == 1
+		if config.FHUSLIF
 			if MorphName == InflateMorph && config.FHUMorphSLIF
 				SLIF_Morph.morph(akActor, "Fill Her Up", morphName, value/10, FHU_KEY)
 			elseif MorphName == InflateMorph2 && config.FHUMorphSLIF2
@@ -3116,7 +3116,7 @@ Function SetBellyMorphValue(Actor akActor, float value, string MorphName)
 			NiOverride.SetBodyMorph(akActor, MorphName, FHU_KEY, value/10)
 		endif
 	Else
-		if sr_SLIF.getvalue() == 1
+		if config.FHUSLIF
 			if MorphName == InflateMorph && config.FHUMorphSLIF
 				SLIF_Morph.morph(akActor, "Fill Her Up", morphName, value/10, FHU_KEY)
 			elseif MorphName == InflateMorph2 && config.FHUMorphSLIF2
