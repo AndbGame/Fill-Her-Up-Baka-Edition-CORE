@@ -466,12 +466,14 @@ Event OnConfigInit()
 EndEvent
 
 Function PageReset()
-	pages = new String[5]
+	pages = new String[7]
 	pages[0] = "$FHU_SETTINGS"
 	pages[1] = "$FHU_EVENTS_HEADER"
 	pages[2] = "$FHU_ACTOR_LIST"
 	pages[3] = "$FHU_RACE_AMOUNT"
 	pages[4] = "$FHU_CREATURERACE_AMOUNT"
+	pages[5] = "$FHU_CUM_EFFECTS"
+	pages[6] = "$FHU_INTEGRATIONS"
 	eventOIDs = new int[128]
     ToggleSlotID = new int[32]
     SlotValue = new int[32]
@@ -544,6 +546,7 @@ EndEvent
 
 Event OnPageReset(String page)
 	if(inflater.GetState() == "maintenance")
+		currentActorinfo = None ; reset selected actor
         setCursorFillMode(LEFT_TO_RIGHT)
         AddHeaderOption("FHU in maintenance, please wait...")
         AddEmptyOption()
@@ -558,6 +561,7 @@ Event OnPageReset(String page)
 	SetCursorFillMode(TOP_TO_BOTTOM)
 	If page == "" || page == pages[0] ; Settings
 		GoToState("settings")
+		currentActorinfo = None ; reset selected actor
 		resetting = false
 		resettingquest = false
 		SaveConfigCONFIRM = false
@@ -653,22 +657,9 @@ Event OnPageReset(String page)
 		resetOID = AddTextOption("$FHU_RESET_ACTORS", "$FHU_RESET")
 		resetquestOID = AddTextOption("$FHU_RESET_QUEST", "$FHU_RESETQUEST")
 
-		AddEmptyOption()
-		AddTextOption("Debug Actions", "", OPTION_FLAG_DISABLED)
-		debugAmount = 1
-		debugVaginalPool = false
-		debugAnalPool = false
-		debugOralPool = false
-		debugAmountOID = AddSliderOption("Fill amount", debugAmount, "{2}")
-		debugVaginalPoolOID = AddToggleOption("Vaginal pool", debugVaginalPool)
-		debugAnalPoolOID = AddToggleOption("Anal pool", debugAnalPool)
-		debugOralPoolOID = AddToggleOption("Oral pool", debugOralPool)
-		debugFillOID = AddTextOption("Inflate player", "start")
-		debugDeflateOID = AddTextOption("Deflate player", "start")
-		debugResetOID = AddTextOption("Reset player", "reset")
-
 	ElseIf page == pages[1]; Events
 		GoToState("events")
+		currentActorinfo = None ; reset selected actor
 		SetCursorPosition(1)
 		eventsOID = AddToggleOption("$FHU_EVENTS", events)
 		eventIntervalOID = AddSliderOption("$FHU_EVENT_INTERVAL", eventManager.interval, "{2} hours")
@@ -746,61 +737,52 @@ Event OnPageReset(String page)
 		ToggleSlotID[31] = AddToggleOption("61 - FX01", bToggleSlot[31])
 	ElseIf page == pages[2]
 		GoToState("actors")
-		; Always show the player
-		SetCursorPosition(0)
-		AddHeaderOption(inflater.player.GetLeveledActorBase().GetName())
-		If inflater.sexlab.GetGender(inflater.player)==1
-			AddTextOption("$FHU_VAG_AMOUNT", StringUtil.SubString(inflater.GetVaginalCum(inflater.player), 0, 5))
+		If !currentActorinfo
+			currentActorinfo = inflater.player
 		EndIf
-		AddTextOption("$FHU_AN_AMOUNT", StringUtil.SubString(inflater.GetAnalCum(inflater.player), 0, 5))
-		AddTextOption("$FHU_OR_AMOUNT", StringUtil.SubString(inflater.GetOralCum(inflater.player), 0, 5))
-		AddTextOption("$FHU_TOTAL_INF", StringUtil.SubString(inflater.GetInflation(inflater.player), 0, 5))
-		Actor a
-		int i = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
-		While i > 0
-			i -= 1
-			a = StorageUtil.FormListGet(inflater, inflater.INFLATED_ACTORS, i) as Actor
-			If a && a != inflater.player
-				AddHeaderOption(a.GetLeveledActorBase().GetName())
-				If inflater.sexlab.GetGender(a)== 1
-					AddTextOption("$FHU_VAG_AMOUNT", StringUtil.SubString(inflater.GetVaginalCum(a), 0, 5))
-				EndIf
-				AddTextOption("$FHU_AN_AMOUNT", StringUtil.SubString(inflater.GetAnalCum(a), 0, 5))
-				AddTextOption("$FHU_OR_AMOUNT", StringUtil.SubString(inflater.GetOralCum(a), 0, 5))
-				AddTextOption("$FHU_TOTAL_INF", StringUtil.SubString(inflater.GetInflation(a),0,5))
-				
-				int iinjector = StorageUtil.FormListCount(a, "sr.inflater.injector")
-				while iinjector > 0
-					iinjector -= 1
-					Actor injector = StorageUtil.FormListGet(a, "sr.inflater.injector", iinjector) as Actor
-					If injector
-						AddTextOption(injector.GetLeveledActorBase().GetName(), DefineSex(injector))
-					Else
-						AddTextOption("Unknown", "Unknown")
-					EndIf
-				endwhile
+		SetCursorPosition(0)
+		
+		UpdateActorInfo(currentActorinfo)
 
-			EndIf
-		EndWhile
 		SetCursorPosition(1)
-		AddHeaderOption("$FHU_SPERM_LIST")
-		int iinjector = sr_InjectorFormlist.getsize()
-		while iinjector > 0
-			iinjector -= 1
-			Form injector = sr_InjectorFormlist.getat(iinjector)
-			Actor injectorActor = injector as Actor
-			string iName = "Unknown"
-			string iDescription = "Unknown"
-			If injectorActor
-				iName = injectorActor.GetLeveledActorBase().GetName()
-				iDescription = DefineSex(injectorActor)
-			ElseIf injector
-				iName = "" + injector + ""
-				iDescription = "Unknown"
-			EndIf
-				AddTextOption(iName, iDescription)
-		EndWhile
+
+		int iOID = 0
+		int selected_actor_id = -1
+		Actor_OIDs = new Int[50]
+		Actor_OIDs_map = new Form[50]
+		String mark = "   "
+
+		If (currentActorinfo == inflater.player)
+			mark = "-&gt; "
+		EndIf
+
+		; Always show the player
+		Actor_OIDs[iOID] = AddTextOption(mark + inflater.player.GetLeveledActorBase().GetName(), "")
+		Actor_OIDs_map[iOID] = inflater.player
+
+		int actorCount = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
+		int i = 0
+		while (i < actorCount) && (i < 50)
+			Form akRef = StorageUtil.FormListGet(inflater, inflater.INFLATED_ACTORS, i)
+			if akRef != None && akRef != inflater.player
+				mark = "   "
+				iOID += 1
+				Actor akActor = akRef as Actor
+				If (currentActorinfo == akActor)
+					mark = "-&gt; "
+				EndIf
+				If akActor
+					Actor_OIDs[iOID] = AddTextOption(mark + akActor.GetLeveledActorBase().GetName(), "")
+				Else
+					Actor_OIDs[iOID] = AddTextOption(mark + "Form: " + akRef.GetFormID(), "")
+				EndIf
+				Actor_OIDs_map[iOID] = akRef
+			endif
+			i += 1
+		endWhile
+
 	ElseIf page == pages[3] ; Human Cum Amounts
+		currentActorinfo = None ; reset selected actor
 		int n
 		int i
 		Race raze
@@ -827,30 +809,118 @@ Event OnPageReset(String page)
 			endWhile
 		endif
 	ElseIf page == pages[4] ; Creature Cum Amounts
-	int nc = 48
-	int ic = 0
-	Race Creatureraze
-	int inflatedActors = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
-	if inflatedActors > 0
-		GoToState("Locked_creaturecumamount")
-		AddHeaderOption("$FHU_CREATURERACE_AMOUNTS_LOCKED")
-		while ic < nc
-			Creatureraze = StorageUtil.FormListGet(self, CREATURERACE_LIST, ic) as Race
-			CreatureRaceOID[ic] = AddTextOption(MiscUtil.GetRaceEditorID(Creatureraze), StorageUtil.GetFloatValue(Creatureraze, inflater.CREATURERACE_CUM_AMOUNT, 0.75))
-			ic += 1
-		endWhile
-	else	
-		GoToState("creaturecumamount")
-		AddHeaderOption("$FHU_CREATURERACE_AMOUNTS")
-		while ic < nc
-			Creatureraze = StorageUtil.FormListGet(self, CREATURERACE_LIST, ic) as Race
-			CreatureRaceOID[ic] = AddSliderOption(MiscUtil.GetRaceEditorID(Creatureraze), StorageUtil.GetFloatValue(Creatureraze, inflater.CREATURERACE_CUM_AMOUNT, 0.75), "{2}")
-			ic += 1
-		endWhile
-	endif
-
+		currentActorinfo = None ; reset selected actor
+		int nc = 48
+		int ic = 0
+		Race Creatureraze
+		int inflatedActors = StorageUtil.FormListCount(inflater, inflater.INFLATED_ACTORS)
+		if inflatedActors > 0
+			GoToState("Locked_creaturecumamount")
+			AddHeaderOption("$FHU_CREATURERACE_AMOUNTS_LOCKED")
+			while ic < nc
+				Creatureraze = StorageUtil.FormListGet(self, CREATURERACE_LIST, ic) as Race
+				CreatureRaceOID[ic] = AddTextOption(MiscUtil.GetRaceEditorID(Creatureraze), StorageUtil.GetFloatValue(Creatureraze, inflater.CREATURERACE_CUM_AMOUNT, 0.75))
+				ic += 1
+			endWhile
+		else	
+			GoToState("creaturecumamount")
+			AddHeaderOption("$FHU_CREATURERACE_AMOUNTS")
+			while ic < nc
+				Creatureraze = StorageUtil.FormListGet(self, CREATURERACE_LIST, ic) as Race
+				CreatureRaceOID[ic] = AddSliderOption(MiscUtil.GetRaceEditorID(Creatureraze), StorageUtil.GetFloatValue(Creatureraze, inflater.CREATURERACE_CUM_AMOUNT, 0.75), "{2}")
+				ic += 1
+			endWhile
+		endif
+	ElseIf page == pages[5] ; CUM_EFFECTS
+		currentActorinfo = None ; reset selected actor
+		GoToState("cum_effects")
+	ElseIf page == pages[6] ; INTEGRATIONS
+		currentActorinfo = None ; reset selected actor
+		GoToState("integrations")
 	EndIf	
 EndEvent
+
+Int[] Actor_OIDs
+Form[] Actor_OIDs_map
+Form currentActorinfo = None
+Function UpdateActorInfo(Form akForm)
+	If akForm == None
+		return
+	EndIf
+
+	Actor akActor = akForm as Actor
+	If !akActor
+		AddHeaderOption("Form: " + akForm.GetFormID())
+		return
+	EndIf
+
+	String genderString = "Male"
+	bool isMale = true
+	If inflater.sexlab.GetGender(akActor) == 1
+		genderString = "Female"
+		isMale = false
+	EndIf
+	AddHeaderOption(akActor.GetLeveledActorBase().GetName() + " - " + genderString)
+	If isMale
+		AddTextOption("$FHU_VAG_AMOUNT", "-", OPTION_FLAG_DISABLED)
+	Else
+		AddTextOption("$FHU_VAG_AMOUNT", StringUtil.SubString(inflater.GetVaginalCum(akActor), 0, 5))
+	EndIf
+	AddTextOption("$FHU_AN_AMOUNT", StringUtil.SubString(inflater.GetAnalCum(akActor),   0, 5))
+	AddTextOption("$FHU_OR_AMOUNT", StringUtil.SubString(inflater.GetOralCum(akActor),   0, 5))
+	AddTextOption("$FHU_TOTAL_INF", StringUtil.SubString(inflater.GetInflation(akActor), 0, 5))
+
+	AddHeaderOption("$FHU_SPERM_LIST")
+	If akActor == inflater.player ;Player
+		int iinjector = sr_InjectorFormlist.getsize()
+		while iinjector > 0
+			iinjector -= 1
+			Form injector = sr_InjectorFormlist.getat(iinjector)
+			Actor injectorActor = injector as Actor
+			string iName = "Unknown"
+			string iDescription = "Unknown"
+			If injectorActor
+				iName = injectorActor.GetLeveledActorBase().GetName()
+				iDescription = DefineSex(injectorActor)
+			ElseIf injector
+				iName = "" + injector + ""
+				iDescription = "Unknown"
+			EndIf
+			AddTextOption(iName, iDescription)
+		EndWhile
+	Else ;NPC
+		Actor a
+		int iinjector = StorageUtil.FormListCount(akActor, "sr.inflater.injector")
+		while iinjector > 0
+			iinjector -= 1
+			Form injector = StorageUtil.FormListGet(akActor, "sr.inflater.injector", iinjector)
+			Actor injectorActor = injector as Actor
+			string iName = "Unknown"
+			string iDescription = "Unknown"
+			If injectorActor
+				iName = injectorActor.GetLeveledActorBase().GetName()
+				iDescription = DefineSex(injectorActor)
+			ElseIf injector
+				iName = "" + injector + ""
+				iDescription = "Unknown"
+			EndIf
+			AddTextOption(iName, iDescription)
+		endwhile
+	EndIf
+
+	AddHeaderOption("Debug Actions")
+	debugAmount = 1
+	debugVaginalPool = false
+	debugAnalPool = false
+	debugOralPool = false
+	debugAmountOID = AddSliderOption("Fill amount", debugAmount, "{2}")
+	debugVaginalPoolOID = AddToggleOption("Vaginal pool", debugVaginalPool)
+	debugAnalPoolOID = AddToggleOption("Anal pool", debugAnalPool)
+	debugOralPoolOID = AddToggleOption("Oral pool", debugOralPool)
+	debugFillOID = AddTextOption("Inflate", "start")
+	debugDeflateOID = AddTextOption("Deflate", "start")
+	debugResetOID = AddTextOption("Reset", "reset")
+EndFunction
 
 String Function DefineSex(actor akactor)
 int isex = akactor.GetLeveledActorBase().Getsex()
@@ -904,11 +974,6 @@ State settings
 			SetSliderDialogDefaultValue(DeflatechanceDefault)
 			SetSliderDialogRange(0, 100)
 			SetSliderDialogInterval(1.0)
-		ElseIf opt == debugAmountOID
-			SetSliderDialogStartValue(1)
-			SetSliderDialogDefaultValue(1)
-			SetSliderDialogRange(0.1, 20.0)
-			SetSliderDialogInterval(0.05)
 		EndIf
 	EndEvent
 
@@ -945,9 +1010,6 @@ State settings
 			Deflatechance = val
 			sr_ExpelFaliure.setvalue(Deflatechance)
 			SetSliderOptionValue(opt, Deflatechance as int, "{0}%")
-		ElseIf opt == debugAmountOID
-			debugAmount = val
-			SetSliderOptionValue(opt, debugAmount, "{2}")
 		EndIf
 	EndEvent
 	
@@ -1173,30 +1235,9 @@ State settings
 		ElseIf opt == consolePrintOID
 			consolePrint = !consolePrint
 			SetToggleOptionValue(consolePrintOID, consolePrint)
-		ElseIf opt == debugResetOID
-			SetTextOptionValue(debugResetOID, "...")
-			inflater.ResetActor(inflater.player)
-			SetTextOptionValue(debugResetOID, "$FHU_DONE")
-		ElseIf opt == debugVaginalPoolOID
-			debugVaginalPool = !debugVaginalPool
-			SetToggleOptionValue(debugVaginalPoolOID, debugVaginalPool)
-		ElseIf opt == debugAnalPoolOID
-			debugAnalPool = !debugAnalPool
-			SetToggleOptionValue(debugAnalPoolOID, debugAnalPool)
 		ElseIf opt == gamepadOID
 			bgamepad = !bgamepad
 			SetToggleOptionValue(gamepadOID, bgamepad)
-		ElseIf opt == debugOralPoolOID
-			debugOralPool = !debugOralPool
-			SetToggleOptionValue(debugOralPoolOID, debugOralPool)
-		ElseIf opt == debugFillOID
-			CloseMCM()
-			Utility.Wait(1)
-			DebugInflate()
-		ElseIf opt == debugDeflateOID
-			CloseMCM()
-			Utility.Wait(1)
-			DebugDeflate()
 		Endif
 	EndEvent
 
@@ -1553,8 +1594,102 @@ State events
 EndState
 
 State actors
+	Event OnOptionSliderOpen(int opt)
+		If opt == debugAmountOID
+			SetSliderDialogStartValue(1)
+			SetSliderDialogDefaultValue(1)
+			SetSliderDialogRange(0.1, 20.0)
+			SetSliderDialogInterval(0.05)
+		EndIf
+	EndEvent
 
+	Event OnOptionSliderAccept(int opt, float val)
+		If opt == debugAmountOID
+			debugAmount = val
+			SetSliderOptionValue(opt, debugAmount, "{2}")
+		EndIf
+	EndEvent
 
+	Event OnOptionSelect(int opt)
+		int i = 0
+		If opt == debugResetOID
+			Actor akActor = currentActorinfo as Actor
+			If akActor
+				SetTextOptionValue(debugResetOID, "...")
+				DebugReset(akActor)
+				SetTextOptionValue(debugResetOID, "$FHU_DONE")
+			EndIf
+		ElseIf opt == debugVaginalPoolOID
+			debugVaginalPool = !debugVaginalPool
+			SetToggleOptionValue(debugVaginalPoolOID, debugVaginalPool)
+		ElseIf opt == debugAnalPoolOID
+			debugAnalPool = !debugAnalPool
+			SetToggleOptionValue(debugAnalPoolOID, debugAnalPool)
+		ElseIf opt == debugOralPoolOID
+			debugOralPool = !debugOralPool
+			SetToggleOptionValue(debugOralPoolOID, debugOralPool)
+		ElseIf opt == debugFillOID
+			Actor akActor = currentActorinfo as Actor
+			If akActor
+				CloseMCM()
+				Utility.Wait(1)
+				DebugInflate(akActor)
+			EndIf
+		ElseIf opt == debugDeflateOID
+			Actor akActor = currentActorinfo as Actor
+			If akActor
+				CloseMCM()
+				Utility.Wait(1)
+				DebugDeflate(akActor)
+			EndIf
+		Else
+			While i < Actor_OIDs.length
+				If Actor_OIDs[i] == opt
+					If Actor_OIDs_map[i]
+						If currentActorinfo != Actor_OIDs_map[i]
+							currentActorinfo = Actor_OIDs_map[i]
+							i = 1001 ; break and reset page
+						Else
+							i = 1000 ; break no change
+						EndIf
+					Else
+						currentActorinfo = None
+						i = 1000 ; break no actor
+					EndIf
+				Else
+					i += 1
+				EndIf
+			EndWhile
+		Endif
+		If i == 1001
+			ForcePageReset()
+		EndIF
+	EndEvent
+
+	Event OnOptionDefault(int opt)
+		If opt == debugAmountOID
+			debugAmount = 1
+			SetSliderOptionValue(opt, debugAmount, "{2}")
+		ElseIf opt == debugVaginalPoolOID
+			debugVaginalPool = false
+			SetToggleOptionValue(debugVaginalPoolOID, debugVaginalPool)
+		ElseIf opt == debugAnalPoolOID
+			debugAnalPool = false
+			SetToggleOptionValue(debugAnalPoolOID, debugAnalPool)
+		ElseIf opt == debugOralPoolOID
+			debugOralPool = false
+			SetToggleOptionValue(debugOralPoolOID, debugOralPool)
+		EndIf
+	EndEvent
+
+EndState
+
+State cum_effects
+
+EndState
+
+State integrations
+	
 EndState
 
 Event OnOptionSelect(int opt)
@@ -1658,18 +1793,6 @@ Event OnOptionDefault(int opt)
 	ElseIf opt == BodyMorphOID
 		BodyMorph = true
 		SetToggleOptionValue(BodyMorphOID, BodyMorph)
-	ElseIf opt == debugAmountOID
-        debugAmount = 1
-        SetSliderOptionValue(opt, debugAmount, "{2}")
-	ElseIf opt == debugVaginalPoolOID
-		debugVaginalPool = false
-		SetToggleOptionValue(debugVaginalPoolOID, debugVaginalPool)
-	ElseIf opt == debugAnalPoolOID
-		debugAnalPool = false
-		SetToggleOptionValue(debugAnalPoolOID, debugAnalPool)
-	ElseIf opt == debugOralPoolOID
-		debugOralPool = false
-		SetToggleOptionValue(debugOralPoolOID, debugOralPool)
 	else
 		int idx = ToggleSlotID.Find(opt)
 		if (idx >= 0)
@@ -1917,16 +2040,17 @@ EndFunction
 
 Event OnConfigOpen()
 	IsConfigOpened = true
+	currentActorinfo = None
 EndEvent
 
 Event OnConfigClose()
+	currentActorinfo = None
 	ApplyConfig()
 	inflater.maintenance()
 	IsConfigOpened = false
 EndEvent
 
-
-Function DebugDeflate()
+Function DebugDeflate(Actor akActor)
 	float amount = debugAmount
 	int pool = 0
 	If debugVaginalPool
@@ -1939,21 +2063,21 @@ Function DebugDeflate()
 		pool = inflater.ORAL
 	EndIf
 
-	inflater.log("DebugDeflate amount: " + amount + "; pool: " + pool)
-
-	If pool == 0 || amount <= 0
+	If pool == 0 || amount <= 0 || !akActor
 		return
 	EndIf
 
+	inflater.log("DebugDeflate actor: " + akActor + "; amount: " + amount + "; pool: " + pool)
+
 	String callback = ""
 
-	int tid = inflater.QueueActor(inflater.player, false, pool, amount, 5.0, callback)
+	int tid = inflater.QueueActor(akActor, false, pool, amount, 5.0, callback)
 	If tid >= 0
 		inflater.InflateQueued()
 	EndIf
 EndFunction
 
-Function DebugInflate()
+Function DebugInflate(Actor akActor)
 	float amount = debugAmount
 	int pool = 0
 	If debugVaginalPool
@@ -1966,17 +2090,24 @@ Function DebugInflate()
 		pool = Math.LogicalOr(pool, inflater.ORAL)
 	EndIf
 
-	inflater.log("DebugInflate amount: " + amount + "; pool: " + pool)
-
-	If pool == 0 || amount <= 0
+	If pool == 0 || amount <= 0 || !akActor
 		return
 	EndIf
 
+	inflater.log("DebugInflate actor: " + akActor + "; amount: " + amount + "; pool: " + pool)
+
 	String callback = ""
 
-	int tid = inflater.QueueActor(inflater.player, true, pool, amount, 5.0, callback)
+	int tid = inflater.QueueActor(akActor, true, pool, amount, 5.0, callback)
 	If tid >= 0
 		inflater.InflateQueued()
+	EndIf
+EndFunction
+
+Function DebugReset(Actor akActor)
+	If akActor
+		inflater.log("DebugReset actor: " + akActor)
+		inflater.ResetActor(akActor)
 	EndIf
 EndFunction
 
