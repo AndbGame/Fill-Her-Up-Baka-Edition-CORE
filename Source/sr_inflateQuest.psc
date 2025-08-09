@@ -2738,6 +2738,23 @@ Function Moan(Actor akActor)
 EndFunction
 
 ; -------
+; Injectors Helpers
+; -------
+
+Function Injector_AddToActor(Actor target, int pool, int amount, Race sourceRace = None, Actor sourceActor = None)
+	string race_id = MiscUtil.GetRaceEditorID(sourceRace)
+
+	int racesList = StringListCount(target, "sr.injector.v3.race_injectors_list")
+	While i > 0
+		i -= 1
+
+	EndWhile
+EndFunction
+
+Function Injector_RemoveFromActor(Actor target, int pool, int amount, int spermType = None)
+EndFunction
+
+; -------
 ; Helpers
 ; -------
 
