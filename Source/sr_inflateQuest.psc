@@ -122,7 +122,7 @@ sr_inflateThread[] Property threads auto
 ;Bool TongueOut
 
 GlobalVariable Property sr_CumMultiplier Auto
-GlobalVariable Property sr_SLIF Auto
+GlobalVariable Property sr_SLIF Auto ;deprecated
 float Property cumMult hidden
 	float Function Get()
 		return sr_CumMultiplier.GetValue()
@@ -334,11 +334,11 @@ Function RubStomach(actor akactor)
 EndFunction
 
 float Function GetVersion()
-	return 2.00
+	return 2.03
 EndFunction
 
 String Function GetVersionString()
-	return "2.00"
+	return "2.03"
 EndFunction
 
 Event OnInit()
@@ -364,16 +364,16 @@ Function VersionUpdate()
 EndFunction
 
 Function maintenance()
-	log("maintenance()")
+	String previousState = GetState()
+	GoToState("maintenance")
 
 	RegisterForModEvent("dhlp-Suspend", "OnDhlpSuspend" )
 	RegisterForModEvent("dhlp-Resume", "OnDhlpResume" )
+
 	if config.enabled
-		;debug.notification("FHU Maintenance")
 		RegisterForModEvent("HookOrgasmStart", "Orgasm")
 		RegisterForModEvent("HookAnimationEnd", "FHUSexlabEnd")
 		RegisterForModEvent("SexLabOrgasmSeparate", "OrgasmSeparate")
-		RestoreActors()
 	else
 		UnregisterForModEvent("HookOrgasmStart")
 		UnregisterForModEvent("HookAnimationEnd")
@@ -384,6 +384,12 @@ Function maintenance()
 	(sr_inflateExternalEventManager as sr_inflateExternalEventController).RegisterModEvent()
 	defAlias.Maintenance()
 	bDeflateAnimation = false
+
+	If previousState != "maintenance"
+		GoToState(previousState)
+	Else
+		GoToState("")
+	EndIf
 EndFunction
 
 ;dhlp event handlers
@@ -1286,14 +1292,14 @@ Function StartLeakage(Actor akActor, int CumType, int animate)
 		return
 	EndIf
 
-	log("StartLeakage for " + akActor.GetLeveledActorBase().GetName() + "; animate:" + animate + "; CumType: " + CumType + "; spermtype: " + spermtype)
-
 	bool isStripArmorExpected = false
 	Armor leak1ForEquip = None
 	Armor leak2ForEquip = None
 	int animnum = 0
 	int spermtype = GetSpermLastActor(akActor, CumType)
 	SetIntValue(akActor, ANIMATING_SPERMTYPE, spermtype)
+
+	log("StartLeakage for " + akActor.GetLeveledActorBase().GetName() + "; animate:" + animate + "; CumType: " + CumType + "; spermtype: " + spermtype)
 
 	If animate == 2
 		; Burst deflate 
@@ -1825,7 +1831,12 @@ Function RestoreActors()
 	int n = FormListCount(self, INFLATED_ACTORS) 
 	while n > 0
 		n -= 1
-		Actor a = FormListGet(self, INFLATED_ACTORS, n) as Actor
+		Form f = FormListGet(self, INFLATED_ACTORS, n)
+		Actor a = f as Actor
+		If a == None
+			ResetActorState(f)
+			FormListRemove(self, INFLATED_ACTORS, f, true)
+		EndIf
 		log("Restoring inflation for " + a.GetLeveledActorBase().GetName() + "...")
 		If config.bellyScale
 			if config.Bodymorph
@@ -2011,6 +2022,37 @@ int i
 
 	endif
 EndFunction
+
+State maintenance
+	Event OnBeginState()
+		log("Starting maintenance")
+	EndEvent
+
+	Function ResetActors()
+		;
+	EndFunction
+	
+	Function ResetActor(Form f)
+		;
+	EndFunction
+
+	Function maintenance()
+		;
+	EndFunction
+
+	Event OnUpdateGameTime()
+		;
+	EndEvent
+
+	Function RestoreActors()
+		;
+	EndFunction
+	
+	Event OnEndState()
+		log("Stopping maintenance")
+		UnregisterForUpdateGameTime()
+	EndEvent
+EndState
 
 State MonitoringInflation
 	Event OnBeginState()
@@ -2244,35 +2286,45 @@ int Function GetOralDeflateChance(Actor akActor)
 	return chance
 EndFunction
 
-Function ResetActors(bool force = false)
-        GoToState("")
-        int n = FormListCount(self, INFLATED_ACTORS)
-		bool resetPlayerState = true
-        while n > 0
-			n -= 1
-			Actor a = FormListGet(self, INFLATED_ACTORS, n) as Actor
-			ResetActorState(a)
-			if a == player
-				resetPlayerState = false
-			EndIf
-        EndWhile
-        FormListClear(self, INFLATED_ACTORS)
+Function ResetActors()
+        
+	String previousState = GetState()
+	GoToState("maintenance")
 
-        ; Make sure player is always reset
-		log("Resetting Player...")
-		If resetPlayerState
-			ResetActorState(player)
+	int n = FormListCount(self, INFLATED_ACTORS)
+	bool resetPlayerState = true
+	while n > 0
+		n -= 1
+		Form f = FormListGet(self, INFLATED_ACTORS, n)
+		ResetActorState(f)
+		if f == player
+			resetPlayerState = false
 		EndIf
-        SendPlayerCumUpdate(0.0, true)
-        SendPlayerCumUpdate(0.0, false)
-        sr_InjectorFormlist.revert()
+	EndWhile
+	FormListClear(self, INFLATED_ACTORS)
 
-        notify("$FHU_ACTORS_RESET")
+	; Make sure player is always reset
+	log("Resetting Player...")
+	If resetPlayerState
+		ResetActorState(player)
+	EndIf
+	SendPlayerCumUpdate(0.0, true)
+	SendPlayerCumUpdate(0.0, false)
+	sr_InjectorFormlist.revert()
+
+	notify("$FHU_ACTORS_RESET")
+
+	GoToState("")
 EndFunction
 
-Function ResetActorState(Actor a)
-        log("Resetting " + a.GetLeveledActorBase().GetName() + "...")
-        if config.bellyScale
+Function ResetActorState(Form f)
+		Actor a = f as Actor
+		String name = "None"
+		If(a)
+			name = a.GetLeveledActorBase().GetName()
+		EndIf
+        log("Resetting " + name + ": " + f + "...")
+        if a && config.bellyScale
 			if config.Bodymorph
 				;SetBellyMorphValue(a, 0.0, "PregnancyBelly")
 				SetBellyMorphValue(a, 0.0, InflateMorph)
@@ -2289,26 +2341,28 @@ Function ResetActorState(Actor a)
 				RemoveNodeScale(a, BELLY_NODE)
 			Endif
         EndIf
-        FormListClear(a, "sr.inflater.injector")
-        FormListClear(a, "sr.inflater.analinjector")
+        FormListClear(f, "sr.inflater.injector")
+        FormListClear(f, "sr.inflater.analinjector")
 
-        UnsetFloatValue(a, INFLATION_AMOUNT)
-        UnsetFloatValue(a, CUM_ANAL)
-        UnsetFloatValue(a, CUM_VAGINAL)
-        UnsetFloatValue(a, CUM_ORAL)
-        UnsetFloatValue(a, LAST_TIME_ANAL)
-        UnsetFloatValue(a, LAST_TIME_VAG)
-        UnsetFloatValue(a, LAST_TIME_ORAL)
-;        UnsetFormValue(a, CHEST_ARMOR) ; obsolete
-        a.RemoveSpell(sr_inflateBurstSpell)
-        UnencumberActor(a)
-        RemoveFaction(a)
+        UnsetFloatValue(f, INFLATION_AMOUNT)
+        UnsetFloatValue(f, CUM_ANAL)
+        UnsetFloatValue(f, CUM_VAGINAL)
+        UnsetFloatValue(f, CUM_ORAL)
+        UnsetFloatValue(f, LAST_TIME_ANAL)
+        UnsetFloatValue(f, LAST_TIME_VAG)
+        UnsetFloatValue(f, LAST_TIME_ORAL)
+;        UnsetFormValue(f, CHEST_ARMOR) ; obsolete
+		If(a)
+			a.RemoveSpell(sr_inflateBurstSpell)
+			UnencumberActor(a)
+			RemoveFaction(a)
+		EndIf
 EndFunction
 
-Function ResetActor(Actor a)
-        ResetActorState(a)
-        FormListRemove(self, INFLATED_ACTORS, a, true)
-        If a == player
+Function ResetActor(Form f)
+        ResetActorState(f)
+        FormListRemove(self, INFLATED_ACTORS, f, true)
+        If f == player
 			SendPlayerCumUpdate(0.0, true)
 			SendPlayerCumUpdate(0.0, false)
 			sr_InjectorFormlist.revert()
@@ -2684,6 +2738,23 @@ Function Moan(Actor akActor)
 EndFunction
 
 ; -------
+; Injectors Helpers
+; -------
+
+Function Injector_AddToActor(Actor target, int pool, int amount, Race sourceRace = None, Actor sourceActor = None)
+	string race_id = MiscUtil.GetRaceEditorID(sourceRace)
+
+	int racesList = StringListCount(target, "sr.injector.v3.race_injectors_list")
+	While i > 0
+		i -= 1
+
+	EndWhile
+EndFunction
+
+Function Injector_RemoveFromActor(Actor target, int pool, int amount, int spermType = None)
+EndFunction
+
+; -------
 ; Helpers
 ; -------
 
@@ -3046,7 +3117,7 @@ Function SetBellyMorphValue(Actor akActor, float value, string MorphName)
 	endif
 	
 	If value != 0.0
-		if sr_SLIF.getvalue() == 1
+		if config.FHUSLIF
 			if MorphName == InflateMorph && config.FHUMorphSLIF
 				SLIF_Morph.morph(akActor, "Fill Her Up", morphName, value/10, FHU_KEY)
 			elseif MorphName == InflateMorph2 && config.FHUMorphSLIF2
@@ -3062,7 +3133,7 @@ Function SetBellyMorphValue(Actor akActor, float value, string MorphName)
 			NiOverride.SetBodyMorph(akActor, MorphName, FHU_KEY, value/10)
 		endif
 	Else
-		if sr_SLIF.getvalue() == 1
+		if config.FHUSLIF
 			if MorphName == InflateMorph && config.FHUMorphSLIF
 				SLIF_Morph.morph(akActor, "Fill Her Up", morphName, value/10, FHU_KEY)
 			elseif MorphName == InflateMorph2 && config.FHUMorphSLIF2
