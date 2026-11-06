@@ -1190,12 +1190,14 @@ float CreatureCumAmount = 0
 Return CreatureCumAmount
 EndFunction
 
-; Fill hole h UP TO targetLevel (<= 0 = as full as it goes). The amount queued is
-; the gap, and the target is capped so the belly (vaginal + anal + oral, the sum
-; the burst check reads) stays at the pool max: this call alone never bursts. It
-; used to queue targetLevel itself as the amount, so a "fill to max" on a belly
-; that already held cum added a whole max on top and landed in the burst zone.
-; Nothing to add still fires the callback, since callers chain scenes on it.
+; Fill hole h UP TO targetLevel; the amount queued is the gap. It used to queue
+; targetLevel itself, so a "fill to max" on a belly that already held cum added a
+; whole max on top and burst. With no target (<= 0) it fills as far as the belly
+; goes without bursting: the pool max less the other two pools (the sum the burst
+; check reads), less 0.01 so float rounding can't tip it over. An explicit target
+; is honored up to the limit Inflate itself enforces, the overflow zone, since
+; quests overfill on purpose (the FTU favor retry adds 20% on a full belly).
+; A call that queues nothing still fires the callback: callers chain scenes on it.
 Function InflateTo(Actor akActor, int h, float targetLevel = -1.0, float time = 2.0, String callback = "")
 	if !akActor
 		return
@@ -1203,46 +1205,50 @@ Function InflateTo(Actor akActor, int h, float targetLevel = -1.0, float time = 
 	float vagNow = GetVaginalCum(akActor)
 	float anNow = GetAnalCum(akActor)
 	float oralNow = GetOralCum(akActor)
-	float cap = config.maxInflation
 	float current = 0.0
+	float limit = 0.0
 	int poolMask = 0
 	If h == 1
-		cap -= anNow + oralNow
 		current = vagNow
+		limit = config.maxInflation * BURST_MULT - anNow
 		poolMask = VAGINAL
 	ElseIf h == 2
-		cap -= vagNow + oralNow
 		current = anNow
+		limit = config.maxInflation * BURST_MULT - vagNow
 		poolMask = ANAL
 	ElseIf h == 3
-		cap -= vagNow + anNow
-		if cap > config.OralmaxInflation
-			cap = config.OralmaxInflation
-		endIf
 		current = oralNow
+		limit = config.OralmaxInflation - 0.01 ; the overflow past it would be expelled
 		poolMask = ORAL
 	Else
 		warn("InflateTo: unknown hole " + h)
-		return
 	EndIf
-	if targetLevel <= 0.0 || targetLevel > cap
-		targetLevel = cap
+	float full = config.maxInflation - vagNow - anNow - oralNow + current - 0.01
+	if full > limit
+		full = limit
+	endIf
+	if targetLevel <= 0.0
+		targetLevel = full
+	elseIf targetLevel > limit
+		targetLevel = limit
 	endIf
 	float amount = targetLevel - current
-	if amount <= 0.0
-		log("InflateTo: hole " + h + " of " + akActor.GetLeveledActorBase().GetName() + " already at " + current + " (target " + targetLevel + "), nothing to add")
-		If callback != ""
-			Int eid = ModEvent.Create(callback)
-			ModEvent.PushForm(eid, akActor)
-			ModEvent.PushFloat(eid, vagNow)
-			ModEvent.PushFloat(eid, anNow)
-			ModEvent.PushFloat(eid, oralNow)
-			ModEvent.Send(eid)
-		EndIf
+	if h == 3
+		amount /= 0.75 ; Inflate keeps three quarters of an oral fill
+	endIf
+	if poolMask && amount > 0.0 && QueueActor(akActor, true, poolMask, amount, time, callback) >= 0
+		InflateQueued()
 		return
 	endIf
-	QueueActor(akActor, true, poolMask, amount, time, callback)
-	InflateQueued()
+	log("InflateTo: nothing queued for hole " + h + " of " + akActor.GetLeveledActorBase().GetName() + " (at " + current + ", target " + targetLevel + ")")
+	If callback != ""
+		Int eid = ModEvent.Create(callback)
+		ModEvent.PushForm(eid, akActor)
+		ModEvent.PushFloat(eid, vagNow)
+		ModEvent.PushFloat(eid, anNow)
+		ModEvent.PushFloat(eid, oralNow)
+		ModEvent.Send(eid)
+	EndIf
 EndFunction
 
 Function InflateDeflate(Actor akActor, Bool Inflation, int poolMask, float targetLevel = -1.0, float time, String callback = "")
@@ -2267,6 +2273,17 @@ Function CheckThreads()
 	endWhile
 EndFunction
 
+bool Function IsHeldByThread(Actor a)
+	int i = threads.length
+	while i > 0
+		i -= 1
+		if threads[i] && threads[i].Holds(a)
+			return true
+		endif
+	endWhile
+	return false
+EndFunction
+
 Function FlushQueue()
 	log("Flushing inflate queue")
 	int i = threads.length
@@ -2682,8 +2699,11 @@ Function ResetActorState(Form f)
 			UnencumberActor(a)
 			RemoveFaction(a)
 			; a fill whose thread died leaves this rank set and every FHU check
-			; refuses the actor from then on; Reset Actors is the user's repair
-			a.RemoveFromFaction(inflaterAnimatingFaction)
+			; refuses the actor from then on. A thread still running a job on the
+			; actor keeps it: CheckThreads, which Reset Actors runs, frees a dead one
+			if !IsHeldByThread(a)
+				a.RemoveFromFaction(inflaterAnimatingFaction)
+			endif
 		EndIf
 EndFunction
 

@@ -23,10 +23,18 @@ bool running = false
 ; the animating faction forever: QueueActor skips the slot and every FHU check
 ; refuses the actor from then on.
 int heartbeat = 0
-int healBeat = -1
-int healStrikes = 0
-float healAt = 0.0
-float HEAL_WINDOW = 60.0
+int healBeat = -1 ; heartbeat when the pending check started, -1 = none pending
+int healTicks = 0
+; what a dead stack leaves behind for ReleaseDead to undo
+int leakType = 0 ; the cum type StartLeakage ran for, 0 = no leak running
+int leakAnim = 0 ; the ANIMATING value StartLeakage wrote
+bool cbSent = false
+
+; The thread's one timer cadence: the start timeout, the moan tick and the liveness
+; check all run on it, so the check counts ticks instead of reading a clock
+float Property TIMER_TICK = 10.0 autoreadonly hidden
+; A running job that shows no heartbeat for this many ticks has lost its stack
+int Property HEAL_TICKS = 6 autoreadonly hidden
 
 bool updateFHU = false
 int updateCumType = 0
@@ -62,7 +70,7 @@ Function SetUp(bool inflate, int poolMask, float amount, float time = 3.0, Strin
 	; Could also do a custom modevent and receive all the parameters in that.
 	; However, this should allow for a more synchronized animation
 	
-	RegisterForSingleUpdate(10.0)
+	RegisterForSingleUpdate(TIMER_TICK)
 EndFunction
 
 Event StartInflation()
@@ -123,7 +131,7 @@ Function SetUpAbsorb(bool inflate, int poolMask, float amount, float time = 6.0,
 	; Could also do a custom modevent and receive all the parameters in that.
 	; However, this should allow for a more synchronized animation
 	
-	RegisterForSingleUpdate(10.0)
+	RegisterForSingleUpdate(TIMER_TICK)
 EndFunction
 
 Event StartAbsorption()
@@ -154,6 +162,12 @@ Event StartAbsorption()
 EndEvent
 
 Function doInflation(Actor p, bool isVaginalOrAnal, float currentInf, float startVag, float startAn, float startOral)
+	if !running || GetActorReference() != p
+		; a stack restored from an older save runs the code saved with it, which
+		; has no heartbeat, but the functions it calls are this file's: once
+		; CheckAlive released it, its belly writes end here
+		return
+	endif
 	If currentInf <= 0
 		currentInf = 0
 	EndIf
@@ -426,14 +440,7 @@ Function Inflate()
 	inflater.UpdateOralFaction(akActor)
 	inflater.EncumberActor(akActor)
 	
-	If cb != ""
-		Int eid = ModEvent.Create(cb)
-		ModEvent.PushForm(eid, akActor)
-		ModEvent.PushFloat(eid, startVag)
-		ModEvent.PushFloat(eid, startAn)
-		ModEvent.PushFloat(eid, startOral)
-		ModEvent.Send(eid)
-	EndIf
+	SendJobCallback(akActor, startVag, startAn, startOral)
 
 	If akActor == inflater.player;No Oral state is needed.
 		If isVaginal
@@ -448,7 +455,7 @@ EndFunction
 Function RegisterFHUUpdate(int CumType)
 	updateCumType = CumType
 	updateFHU = true
-	RegisterForSingleUpdate(10.0)
+	RegisterForSingleUpdate(TIMER_TICK)
 EndFunction
 
 Function ScheduleTullAnimatedCreampieUnequip()
@@ -538,7 +545,9 @@ Function Deflate()
 	
 	log("DefAmount: " + deflationAmount + ", total time: " + tme + ", steps: " + steps + ", step: " + step)
 	
+	leakType = Cumtype ; before the call: a stack that dies inside it still gets undone
 	inflater.StartLeakage(akActor, Cumtype, animate)
+	leakAnim = GetIntValue(akActor, inflater.ANIMATING)
 	RegisterFHUUpdate(Cumtype)
 
 	If akActor.Is3DLoaded()
@@ -630,6 +639,7 @@ Function Deflate()
 	endIf
 
 	inflater.StopLeakage(akActor, Cumtype)
+	leakType = 0
 
 	If animate == 2 || animate == -2
 		; burst release just ended - show the Tull creampie overlay on the
@@ -686,13 +696,7 @@ Function Deflate()
 		endif
 	endif
 
-	If cb != ""
-		Int eid = ModEvent.Create(cb)
-		ModEvent.PushForm(eid, akActor)
-		ModEvent.PushFloat(eid, startVag)
-		ModEvent.PushFloat(eid, startAn)
-		ModEvent.Send(eid)
-	EndIf
+	SendJobCallback(akActor, startVag, startAn, startOral)
 	
 	If akActor == inflater.player;No Oral state is needed. Oral is Wip
 		If isVaginal
@@ -911,13 +915,7 @@ Function Absorb()
 		endif
 	endif
 
-	If cb != ""
-		Int eid = ModEvent.Create(cb)
-		ModEvent.PushForm(eid, akActor)
-		ModEvent.PushFloat(eid, startVag)
-		ModEvent.PushFloat(eid, startAn)
-		ModEvent.Send(eid)
-	EndIf
+	SendJobCallback(akActor, startVag, startAn, startOral)
 	
 	If akActor == inflater.player;No Oral state is needed. Oral is Wip
 		If isVaginal
@@ -942,54 +940,60 @@ Event OnUpdate()
 		return
 	EndIf
 
-	bool armed = false
-	if updateFHU
-		if inflater.UpdateFHUmoan(GetReference(), updateCumType)
-			RegisterForSingleUpdate(10.0)
-			armed = true
-		Else
-			updateCumType = 0
-			updateFHU = false
-		EndIf
+	if updateFHU && !inflater.UpdateFHUmoan(GetReference(), updateCumType)
+		updateCumType = 0
+		updateFHU = false
 	EndIf
 
 	if healBeat >= 0
-		; the moan ticks above share this timer, so the check waits out its window
-		float left = HEAL_WINDOW - (Utility.GetCurrentRealTime() - healAt)
-		if left > 1.0
-			if !armed
-				RegisterForSingleUpdate(left)
-			endif
-		elseif heartbeat != healBeat
+		if heartbeat != healBeat
 			healBeat = -1 ; alive
 		else
-			healStrikes += 1
-			if healStrikes >= 2
-				log("Thread lost its stack, releasing " + GetReference() + ".", 1)
-				Actor t = GetActorReference()
-				if t
-					t.RemoveFromFaction(inflater.inflaterAnimatingFaction)
-				endif
-				ResetThread()
+			healTicks += 1
+			if healTicks >= HEAL_TICKS
+				ReleaseDead()
 				return
 			endif
-			healBeat = heartbeat
-			healAt = Utility.GetCurrentRealTime()
-			if !armed
-				RegisterForSingleUpdate(HEAL_WINDOW)
-			endif
 		endif
+	endif
+
+	if updateFHU || healBeat >= 0
+		RegisterForSingleUpdate(TIMER_TICK)
 	endif
 EndEvent
 
 Function ResetThread()
 	UnregisterForUpdate()
+	; a slot that timed out before its start event still listened for it, and
+	; the next broadcast for another job started this one
+	UnregisterForModEvent(inflater.START_INFLATION)
+	UnregisterForModEvent(inflater.START_ABSORPTION)
 	running = false
 	updateFHU = false
 	updateCumType = 0
 	healBeat = -1
-	healStrikes = 0
+	healTicks = 0
+	leakType = 0
+	leakAnim = 0
+	cbSent = false
 	clear()
+EndFunction
+
+; The job's callback, once: an inflation sends the actor and the three pools, a
+; deflation or absorption vaginal and anal only (the two shapes callers handle)
+Function SendJobCallback(Actor akActor, float v, float a, float o)
+	cbSent = true
+	If cb == ""
+		return
+	EndIf
+	Int eid = ModEvent.Create(cb)
+	ModEvent.PushForm(eid, akActor)
+	ModEvent.PushFloat(eid, v)
+	ModEvent.PushFloat(eid, a)
+	If inf
+		ModEvent.PushFloat(eid, o)
+	EndIf
+	ModEvent.Send(eid)
 EndFunction
 
 ; A Utility.Wait in slices that bump the heartbeat, so CheckAlive can tell a stack
@@ -1007,26 +1011,45 @@ Function WaitAlive(float secs)
 	heartbeat += 1
 EndFunction
 
-; Called by the quest on every game load and from Reset Actors. A busy thread
-; proves it is alive by moving heartbeat within HEAL_WINDOW; two windows without
-; a beat mean the stack is gone (see the heartbeat comment at the top), and the
-; thread releases the actor's animating faction and frees its slot. Both the
-; check timer and Utility.Wait run on the game clock, so a live stack always
-; beats before the timer fires; the second strike covers a menu pause landing
-; exactly on the check.
+; This thread is running a job on a (alive or not: CheckAlive tells which)
+bool Function Holds(Actor a)
+	return running && a && GetActorReference() == a
+EndFunction
+
+; Called by the quest on every game load, every MCM close and from Reset Actors.
+; A running job proves it is alive by moving heartbeat; HEAL_TICKS ticks without
+; a beat mean its stack is gone (see the heartbeat comment at the top). Ticks and
+; Utility.Wait both stop in menus, so a live stack, which beats at least once a
+; second, always beats long before the count runs out. A check already pending
+; is left alone, so reopening the MCM never restarts it.
 Function CheckAlive()
-	if GetReference() == None
-		return ; free slot
-	endif
-	if !running
-		; set up, but its start event never came and the 10 s timeout was lost
-		RegisterForSingleUpdate(HEAL_WINDOW)
-		return
+	if !running || healBeat >= 0 || GetReference() == None
+		return ; idle, waiting for its start (SetUp's timeout covers that), or pending
 	endif
 	healBeat = heartbeat
-	healStrikes = 0
-	healAt = Utility.GetCurrentRealTime()
-	RegisterForSingleUpdate(HEAL_WINDOW)
+	healTicks = 0
+	RegisterForSingleUpdate(TIMER_TICK) ; replaces a pending moan tick, which runs on TIMER_TICK too
+EndFunction
+
+; The stack is gone: undo what it held (the leak animation with its control lock,
+; the animating faction), let a scene chained on the callback go on, free the slot
+Function ReleaseDead()
+	Actor a = GetActorReference()
+	if a
+		log("Thread lost its stack, releasing.", 1)
+		if leakType > 0
+			if GetIntValue(a, inflater.ANIMATING) == 0
+				; Reset Actors clears it, and StopLeakage reads it to restore controls
+				SetIntValue(a, inflater.ANIMATING, leakAnim)
+			endif
+			inflater.StopLeakage(a, leakType)
+		endif
+		a.RemoveFromFaction(inflater.inflaterAnimatingFaction)
+		if !cbSent
+			SendJobCallback(a, GetFloatValue(a, inflater.CUM_VAGINAL), GetFloatValue(a, inflater.CUM_ANAL), GetFloatValue(a, inflater.CUM_ORAL))
+		endif
+	endif
+	ResetThread()
 EndFunction
 
 Function log(String msg, int lvl = 0)
