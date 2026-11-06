@@ -17,6 +17,17 @@ String cb = ""
 
 bool running = false
 
+; Liveness for CheckAlive(): the stepping loops and WaitAlive bump heartbeat while a
+; fill or deflation runs. A thread whose Papyrus stack died (a stack dump under VM
+; load, a save cleaner, a script swap mid-fill) keeps running = true, its actor and
+; the animating faction forever: QueueActor skips the slot and every FHU check
+; refuses the actor from then on.
+int heartbeat = 0
+int healBeat = -1
+int healStrikes = 0
+float healAt = 0.0
+float HEAL_WINDOW = 60.0
+
 bool updateFHU = false
 int updateCumType = 0
 
@@ -57,6 +68,7 @@ EndFunction
 Event StartInflation()
 	UnregisterForModEvent(inflater.START_INFLATION)
 	running = true
+	heartbeat += 1
 	UnregisterForUpdate()
 	Actor t = GetActorReference()
 	if !t
@@ -117,6 +129,7 @@ EndFunction
 Event StartAbsorption()
 	UnregisterForModEvent(inflater.START_ABSORPTION)
 	running = true
+	heartbeat += 1
 	UnregisterForUpdate()
 	Actor t = GetActorReference()
 	if !t
@@ -332,6 +345,9 @@ Function Inflate()
 		tme = 6.0
 	endif
 	int steps =  Math.Ceiling(tme / 0.2)
+	if steps < 1
+		steps = 1 ; a time of 0 divided by zero and the loops below never advanced
+	endif
 	float step = inflationAmount / steps
 	float oralstep = inflationOralAmount / steps
 	float inflationTick = inflater.config.BodyMorphApplyPeriod
@@ -342,9 +358,15 @@ Function Inflate()
 		if inflater.UseSlifNG()
 			; SLIF NG ramps natively: send the final belly once, sized to land in tme
 			inflater.SlifBelly(akActor, inflationTarget + oralCum, tme)
-			Utility.wait(tme)
+			WaitAlive(tme)
 		else
-		while(currentInflation < inflationTarget)
+		; counted: a step too small to move the float (a refill at the cap leaves a
+		; one-ulp gap) used to spin here forever, rewriting one belly value every
+		; tick against whatever else touched the actor - the "oscillating belly"
+		int n = 0
+		while n < steps && currentInflation < inflationTarget
+			n += 1
+			heartbeat += 1
 			currentInflation += step
 			BodyMorphApplied = false
 			tick -= 0.2
@@ -361,7 +383,10 @@ Function Inflate()
 
 		tick = inflationTick
 		BodyMorphApplied = true
-		while(currentOralInflation < oralCum)
+		n = 0
+		while n < steps && currentOralInflation < oralCum
+			n += 1
+			heartbeat += 1
 			currentOralInflation += oralstep
 			tick -= 0.2
 			BodyMorphApplied = false
@@ -499,6 +524,9 @@ Function Deflate()
 	float deflationAmount = currentInflation - deflateTarget
 ;	float deflationOralAmount = currentInflation - deflateTarget
 	int steps = Math.Ceiling(tme / 0.2)
+	if steps < 1
+		steps = 1
+	endif
 	float step
 	
 ;	if isAnal || isVaginal
@@ -527,9 +555,12 @@ Function Deflate()
 					else
 						inflater.SlifBelly(akActor, deflateTarget + startVag + startAn, tme)
 					endif
-					Utility.Wait(tme)
+					WaitAlive(tme)
 				else
-				while currentInflation > deflateTarget
+				int n = 0
+				while n < steps && currentInflation > deflateTarget
+					n += 1
+					heartbeat += 1
 					currentInflation -= step
 					tick -= 0.2
 					BodyMorphApplied = false
@@ -547,7 +578,7 @@ Function Deflate()
 				doInflation(akActor, (isAnal || isVaginal), deflateTarget, startVag, startAn, startOral)
 			Endif
 		Else
-			Utility.wait(tme)
+			WaitAlive(tme)
 		EndIf
 		
 		if isAnal || isVaginal
@@ -595,7 +626,7 @@ Function Deflate()
 		EndIf
 	Else
 		log("Deflate blocked by bursting")
-		Utility.wait(tme)
+		WaitAlive(tme)
 	endIf
 
 	inflater.StopLeakage(akActor, Cumtype)
@@ -743,6 +774,9 @@ Function Absorb()
 	
 	float deflationAmount = currentInflation - deflateTarget
 	int steps = Math.Ceiling(tme / 0.2);Time for animation
+	if steps < 1
+		steps = 1
+	endif
 	float step
 
 	;if isAnal || isVaginal
@@ -771,9 +805,12 @@ Function Absorb()
 					else
 						inflater.SlifBelly(akActor, deflateTarget + startVag + startAn, tme)
 					endif
-					Utility.Wait(tme)
+					WaitAlive(tme)
 				else
-				while currentInflation > deflateTarget
+				int n = 0
+				while n < steps && currentInflation > deflateTarget
+					n += 1
+					heartbeat += 1
 					currentInflation -= step
 					tick -= 0.2
 					BodyMorphApplied = false
@@ -791,7 +828,7 @@ Function Absorb()
 				doInflation(akActor, (isAnal || isVaginal), deflateTarget, startVag, startAn, startOral)
 			Endif
 		Else
-			Utility.wait(tme)
+			WaitAlive(tme)
 		EndIf
 		
 		if isAnal || isVaginal
@@ -838,7 +875,7 @@ Function Absorb()
 		EndIf
 	Else
 		log("Absorb blocked by bursting")
-		Utility.wait(tme)
+		WaitAlive(tme)
 	endIf
 		
 	log("Cum amounts after absorb, v: "+ vagCum +", a: "+ analCum +", t: "+ (analCum+vagCum) + ", o: " + oralCum)
@@ -905,14 +942,44 @@ Event OnUpdate()
 		return
 	EndIf
 
+	bool armed = false
 	if updateFHU
 		if inflater.UpdateFHUmoan(GetReference(), updateCumType)
 			RegisterForSingleUpdate(10.0)
+			armed = true
 		Else
 			updateCumType = 0
 			updateFHU = false
 		EndIf
 	EndIf
+
+	if healBeat >= 0
+		; the moan ticks above share this timer, so the check waits out its window
+		float left = HEAL_WINDOW - (Utility.GetCurrentRealTime() - healAt)
+		if left > 1.0
+			if !armed
+				RegisterForSingleUpdate(left)
+			endif
+		elseif heartbeat != healBeat
+			healBeat = -1 ; alive
+		else
+			healStrikes += 1
+			if healStrikes >= 2
+				log("Thread lost its stack, releasing " + GetReference() + ".", 1)
+				Actor t = GetActorReference()
+				if t
+					t.RemoveFromFaction(inflater.inflaterAnimatingFaction)
+				endif
+				ResetThread()
+				return
+			endif
+			healBeat = heartbeat
+			healAt = Utility.GetCurrentRealTime()
+			if !armed
+				RegisterForSingleUpdate(HEAL_WINDOW)
+			endif
+		endif
+	endif
 EndEvent
 
 Function ResetThread()
@@ -920,7 +987,46 @@ Function ResetThread()
 	running = false
 	updateFHU = false
 	updateCumType = 0
+	healBeat = -1
+	healStrikes = 0
 	clear()
+EndFunction
+
+; A Utility.Wait in slices that bump the heartbeat, so CheckAlive can tell a stack
+; sitting in a long wait (a 30 s scripted deflation) from one that is gone
+Function WaitAlive(float secs)
+	while secs > 0.0
+		heartbeat += 1
+		if secs > 1.0
+			Utility.Wait(1.0)
+		else
+			Utility.Wait(secs)
+		endif
+		secs -= 1.0
+	endWhile
+	heartbeat += 1
+EndFunction
+
+; Called by the quest on every game load and from Reset Actors. A busy thread
+; proves it is alive by moving heartbeat within HEAL_WINDOW; two windows without
+; a beat mean the stack is gone (see the heartbeat comment at the top), and the
+; thread releases the actor's animating faction and frees its slot. Both the
+; check timer and Utility.Wait run on the game clock, so a live stack always
+; beats before the timer fires; the second strike covers a menu pause landing
+; exactly on the check.
+Function CheckAlive()
+	if GetReference() == None
+		return ; free slot
+	endif
+	if !running
+		; set up, but its start event never came and the 10 s timeout was lost
+		RegisterForSingleUpdate(HEAL_WINDOW)
+		return
+	endif
+	healBeat = heartbeat
+	healStrikes = 0
+	healAt = Utility.GetCurrentRealTime()
+	RegisterForSingleUpdate(HEAL_WINDOW)
 EndFunction
 
 Function log(String msg, int lvl = 0)
